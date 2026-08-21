@@ -6,10 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace GameSharp.Collections;
 
-/// <summary>
-/// Represents a collection of derived type identifiers for a given base type identifier.
-/// </summary>
-public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
+internal sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
 {
     internal readonly ref struct CopyContext(int id, ImmutableArray<int> ids)
     {
@@ -26,9 +23,6 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
         }
     }
 
-    /// <summary>
-    /// Enumerates the elements of a <see cref="DerivedTypeCollection"/>.
-    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public ref struct Enumerator
     {
@@ -40,7 +34,6 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
 
         internal int ID { get; }
 
-        /// <inheritdoc cref="IEnumerator.Current"/>
         public int Current => _intEnum.Current;
 
         internal Enumerator([UnscopedRef] ref readonly int id, ImmutableArray<int> ids)
@@ -56,7 +49,6 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
             _r2 = 0..pivot;
         }
 
-        /// <inheritdoc cref="IEnumerator.MoveNext"/>
         public bool MoveNext()
         {
             while (!_intEnum.MoveNext())
@@ -77,12 +69,10 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
     private readonly int _typeID;
     private ImmutableArray<int> _ids = [];
 
-    /// <inheritdoc/>
     public int Count => _ids.Length + 1;
 
     bool ICollection<int>.IsReadOnly => true;
 
-    /// <inheritdoc/>
     public int this[int index]
     { 
         get => index == 0 ? _typeID : _ids[index - 1]; 
@@ -94,7 +84,6 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
         _typeID = id;
     }
 
-    /// <inheritdoc/>
     public bool Contains(int item)
     {
         if (item == _typeID)
@@ -107,7 +96,6 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
         return exists;
     }
 
-    /// <inheritdoc/>
     public int IndexOf(int item)
     {
         ReadOnlySpan<int> span = _ids.AsSpan();
@@ -115,18 +103,6 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
         return exists || item == _typeID ? ToElementOffset(byteOffset) : -1;
     }
 
-    /// <summary>
-    /// Copies the elements of the <see cref="DerivedTypeCollection"/> to a <see cref="Span{T}"/>, starting at the beginning of the destination span.
-    /// </summary>
-    /// <param name="destination">The span to copy the elements to.</param>
-    /// <returns>The number of elements copied.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int CopyTo(Span<int> destination)
-    {
-        return CopyTo(_ids.AsSpan(), _typeID, destination);
-    }
-
-    /// <inheritdoc/>
     public void CopyTo(int[] array, int arrayIndex)
     {
         ArgumentNullException.ThrowIfNull(array);
@@ -135,7 +111,6 @@ public sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
         CopyTo(ids, _typeID, array.AsSpan(arrayIndex));
     }
 
-    /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
     public Enumerator GetEnumerator()
     {
         return new Enumerator(in _typeID, _ids);
