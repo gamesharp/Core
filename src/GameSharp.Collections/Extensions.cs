@@ -54,7 +54,7 @@ public static class Extensions
     /// <param name="item">The item to remove.</param>
     /// <param name="comparer">An optional equality comparer to use for comparing items.</param>
     /// <returns><see langword="true"/> if the item was successfully removed; otherwise, <see langword="false"/>.</returns>
-    /// <inheritdoc cref="IndexOf{T}(ref PooledList{T}, T, IEqualityComparer{T}?)"/>
+    /// <inheritdoc cref="IndexOf{T}(ref readonly PooledList{T}, T, IEqualityComparer{T}?)"/>
     public static bool Remove<T>(this scoped ref PooledList<T> list, [NotNullWhen(true)] T? item, IEqualityComparer<T?>? comparer = null)
     {
         int index = list.IndexOf(item, comparer);
