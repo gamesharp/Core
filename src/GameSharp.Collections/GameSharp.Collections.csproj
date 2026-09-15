@@ -18,7 +18,7 @@
     <PackageProjectUrl>https://github.com/gamesharp/Core/tree/master/src/GameSharp.Collections</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/gamesharp/Core.git</RepositoryUrl>
-    <PackageVersion>1.0.0</PackageVersion>
+    <PackageVersion>2.0.0</PackageVersion>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
   </PropertyGroup>
 
