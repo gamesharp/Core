@@ -4,9 +4,6 @@ An aggressively optimized, AOT-compatible, cache-friendly C# collection library 
 
 ## Key Features
 
-> [!IMPORTANT]
-> Dynamic `AssemblyLoadContext` unloading is not supported. If you require unloading, please use `TypeLookup` or `ImmutableTypeLookup` in a separate `AppDomain` or process.
-
 * **O(log N) / Cache-Optimized Lookups:** Employs a custom `HybridSearch` algorithm that balances binary and linear searching, tuned perfectly to your CPU's L1 cache line size (via automatic OS-level detection on Windows, macOS, and Linux).
 * **Hardware Acceleration:** Utilizes SIMD/Vector instructions for extremely fast offset calculations and cluster lookups during collection mutations.
 * **AOT Compatible:** Fully supports Native AOT, avoiding dynamic code generation where possible while maintaining flexibility.
@@ -15,6 +12,7 @@ An aggressively optimized, AOT-compatible, cache-friendly C# collection library 
   * `TypeLookup`: A mutable, highly performant collection of items grouped by type.
   * `ImmutableTypeLookup`: A thread-safe, immutable counterpart with robust `Builder` and lock-free `InterlockedUpdate` support.
 * **Zero-Allocation Enumeration:** Iteration over type clusters is allocation-free using custom `ref struct` enumerators.
+* **`PooledList<T>`:** A high-performance `ref struct` list backed by `ArrayPool`, designed to minimize allocations and improve memory locality for both value and reference types.
 
 ## Performance & Benchmarks
 
@@ -28,7 +26,7 @@ Add the library to your .NET 10 project:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="GameSharp.Collections" Version="1.0.0" />
+  <PackageReference Include="GameSharp.Collections" Version="2.0.0" />
 </ItemGroup>
 ```
 
@@ -92,6 +90,30 @@ ImmutableTypeLookup.InterlockedUpdate(
     (current, itemToAdd) => current.Add(itemToAdd), 
     new Weapon()
 );
+```
+
+### `PooledList<T>`
+
+`PooledList<T>` is a pooled, disposable list optimized for low-allocation hot paths.
+```csharp
+using GameSharp.Collections;
+
+PooledList<int> list = new(initialCapacity: 8);
+try
+{
+    list.Add(10); 
+    list.Add(20); 
+    list.Insert(15, index: 1);
+    bool has20 = list.Contains(20);
+    int indexOf15 = list.IndexOf(15);
+    list.Remove(10); 
+    list.RemoveAt(0);
+    foreach (int item in list) { Console.WriteLine(item); }
+}
+finally
+{
+    list.Dispose(); // Return the internal array to the pool
+}
 ```
 
 ## License
