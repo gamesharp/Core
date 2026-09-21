@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace GameSharp.Collections;
 
-internal sealed class TypeInfo
+internal sealed class TypeInfo : IEquatable<TypeInfo>
 {
     private static readonly TypeRegistryProvider _registryProvider;
 
@@ -33,9 +33,19 @@ internal sealed class TypeInfo
         Derived = new DerivedTypeCollection(ID);
     }
 
+    public bool Equals(TypeInfo? other)
+    {
+        return other is { } && ID == other.ID;
+    }
+
+    public bool EqualsOrAssignableFrom(TypeInfo other)
+    {
+        return ID == other.ID || Derived.Contains(other.ID);
+    }
+
     public override bool Equals(object? obj)
     {
-        return obj is TypeInfo other && ID == other.ID;
+        return Equals(obj as TypeInfo);
     }
 
     public override int GetHashCode()

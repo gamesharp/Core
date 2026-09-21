@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ObjectiveC;
 
 namespace GameSharp.Collections;
 
@@ -106,43 +107,31 @@ public abstract class ReadOnlyTypeLookup : ICollection<KeyValuePair<Type, object
     /// <inheritdoc cref="IEnumerator{T}"/>
     public ref struct Enumerator
     {
-        private readonly ReadOnlySpan<object> _items;
-        private readonly ref IntegerLookup _last;
-        private ref IntegerLookup _current;
-        private ReadOnlySpan<object>.Enumerator _enumerator;
-        private Type? _type;
+        private Cluster _current;
+        private ClusterCollection.Enumerator _clusterEnum;
+        private ReadOnlySpan<object>.Enumerator _itemEnum;
 
         /// <inheritdoc cref="IEnumerator{T}.Current"/>
-        public readonly KeyValuePair<Type, object> Current => new(_type!, _enumerator.Current);
+        public readonly KeyValuePair<Type, object> Current => new(_current.Type, _itemEnum.Current);
 
         internal Enumerator(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items)
         {
-            _current = ref MemoryMarshal.GetReference(lookups);
-            _last = ref Unsafe.Add(ref _current, lookups.Length - 1);
-            _items = items;
+            _clusterEnum = new ClusterCollection.Enumerator(lookups, items);
         }
 
         /// <inheritdoc cref="IEnumerator.MoveNext()"/>
         public bool MoveNext()
         {
-            while (!_enumerator.MoveNext())
+            while (!_itemEnum.MoveNext())
             {
-                if (Unsafe.IsAddressGreaterThan(in _current, in _last))
+                if (_clusterEnum.MoveNext())
                 {
-                    return false;
+                    _current = _clusterEnum.Current;
+                    _itemEnum = _current.Items.GetEnumerator();
+                    continue;
                 }
 
-                ref IntegerLookup nextRef = ref Unsafe.Add(ref _current, 1);
-                _type = TypeInfo.Get(_current.key).Type;
-                if (Unsafe.AreSame(in _current, in _last))
-                {
-                    _enumerator = _items[_current.index..].GetEnumerator();
-                }
-                else
-                {
-                    _enumerator = _items[_current.index..nextRef.index].GetEnumerator();
-                }
-                _current = ref nextRef;
+                return false;
             }
 
             return true;
@@ -320,13 +309,177 @@ public abstract class ReadOnlyTypeLookup : ICollection<KeyValuePair<Type, object
         }
     }
 
-    private protected const string RequiresDynamicCodeMessage = "This method uses runtime type information which may require dynamic code generation.";
+    /// <summary>
+    /// Represents a contiguous cluster of items of the same type.
+    /// </summary>
+    public readonly ref struct Cluster
+    {
+        internal ReadOnlySpan<object> Items { get; }
+
+        private readonly TypeInfo _typeInfo;
+        /// <summary>
+        /// Gets the type of the items in the cluster.
+        /// </summary>
+        public Type Type => _typeInfo.Type;
+
+        /// <summary>
+        /// Gets the number of items in the cluster.
+        /// </summary>
+        public int Count => Items.Length;
+
+        internal Cluster(TypeInfo typeInfo, ReadOnlySpan<object> items)
+        {
+            _typeInfo = typeInfo;
+            Items = items;
+        }
+
+        /// <summary>
+        /// Attempts to cast the items in the cluster to the specified type.
+        /// </summary>
+        /// <typeparam name="T">The type to cast the items to.</typeparam>
+        /// <param name="items">When this method returns, contains the items cast to the specified type, if the cast succeeded; otherwise, the default value.</param>
+        /// <returns><see langword="true"/> if the items were successfully cast to the specified type; otherwise, <see langword="false"/>.</returns>
+        public bool TryCast<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>(out ReadOnlySpan<T> items) where T : class
+        {
+            if (Is<T>())
+            {
+                ref object data = ref MemoryMarshal.GetReference(Items);
+                items = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<object, T>(ref data), Items.Length);
+                return true;
+            }
+
+            items = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Casts the items in the cluster to the specified type.
+        /// </summary>
+        /// <typeparam name="T">The type to cast the items to.</typeparam>
+        /// <returns>A read-only span of the items cast to the specified type.</returns>
+        /// <exception cref="InvalidCastException">Thrown if the items in the cluster cannot be cast to the specified type.</exception>
+        public ReadOnlySpan<T> Cast<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>() where T : class
+        {
+            if (!Is<T>())
+            {
+                InvalidCast(typeof(T));
+            }
+
+            ref object data = ref MemoryMarshal.GetReference(Items);
+            return MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<object, T>(ref data), Items.Length);
+        }
+
+        /// <inheritdoc cref="Is(Type)"/>
+        /// <typeparam name="T">The type to check for.</typeparam>
+        public bool Is<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>() where T : class
+        {
+            TypeInfo typeInfo = TypeInfo.Get<T>();
+            return typeInfo.EqualsOrAssignableFrom(_typeInfo);
+        }
+
+        /// <summary>
+        /// Determines whether the cluster contains items of the specified type or any of its derived types.
+        /// </summary>
+        /// <param name="type">The type to check for.</param>
+        /// <returns>
+        /// <see langword="true"/> if the cluster contains items of the specified type or any of its derived types; 
+        /// otherwise, <see langword="false"/>.
+        /// </returns>
+        public bool Is([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
+        {
+            TypeInfo typeInfo = TypeInfo.Get(type);
+            return typeInfo.EqualsOrAssignableFrom(_typeInfo);
+        }
+
+        [DoesNotReturn, StackTraceHidden, MethodImpl(MethodImplOptions.NoInlining)]
+        private void InvalidCast(Type targetType)
+        {
+            throw new InvalidCastException($"Cannot cast a cluster of type '{Type.FullName}' to '{targetType.FullName}'.");
+        }
+
+        /// <summary>
+        /// Defines an implicit conversion from a <see cref="Cluster"/> to a <see cref="ReadOnlySpan{T}"/> of objects.
+        /// </summary>
+        /// <param name="value">The cluster to convert.</param>
+        public static implicit operator ReadOnlySpan<object>(Cluster value) => value.Items;
+    }
+
+    /// <summary>
+    /// Represents a collection of clusters, where each cluster contains contiguous items of the same type.
+    /// </summary>
+    public readonly ref struct ClusterCollection
+    {
+        /// <summary>
+        /// An enumerator for iterating over the clusters in the collection.
+        /// </summary>
+        public ref struct Enumerator
+        {
+            private readonly ReadOnlySpan<object> _items;
+            private readonly ref IntegerLookup _last;
+            private ref IntegerLookup _current;
+
+            /// <inheritdoc cref="IEnumerator{T}.Current"/>
+            public Cluster Current { readonly get; private set; }
+
+            internal Enumerator(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items)
+            {
+                _current = ref MemoryMarshal.GetReference(lookups);
+                _last = ref Unsafe.Add(ref _current, lookups.Length - 1);
+                _items = items;
+            }
+
+            /// <inheritdoc cref="IEnumerator.MoveNext()"/>
+            public bool MoveNext()
+            {
+                if (Unsafe.IsAddressGreaterThan(in _current, in _last))
+                {
+                    return false;
+                }
+
+                ref IntegerLookup nextRef = ref Unsafe.Add(ref _current, 1);
+                TypeInfo typeInfo = TypeInfo.Get(_current.key);
+                if (Unsafe.AreSame(in _current, in _last))
+                {
+                    Current = new Cluster(typeInfo, _items[_current.index..]);
+                }
+                else
+                {
+                    Current = new Cluster(typeInfo, _items[_current.index..nextRef.index]);
+                }
+                _current = ref nextRef;
+
+                return true;
+            }
+        }
+
+        private readonly ReadOnlySpan<IntegerLookup> _lookups;
+        private readonly ReadOnlySpan<object> _items;
+
+        /// <summary>
+        /// Gets the number of clusters in the collection.
+        /// </summary>
+        public int Count => _lookups.Length;
+
+        internal ClusterCollection(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items)
+        {
+            _lookups = lookups;
+            _items = items;
+        }
+
+        /// <inheritdoc cref="IEnumerable{T}.GetEnumerator()"/>
+        public Enumerator GetEnumerator() => new(_lookups, _items);
+    }
 
     internal abstract ReadOnlyMemory<IntegerLookup> Lookups { get; }
     internal abstract ReadOnlyMemory<object> Items { get; }
 
     /// <inheritdoc/>
     public int Count => Items.Length;
+
+    /// <summary>
+    /// Gets a <see cref="ClusterCollection"/> representing the contiguous clusters of items in the collection, grouped by type.
+    /// </summary>
+    public ClusterCollection Clusters => new(Lookups.Span, Items.Span);
 
     bool ICollection<KeyValuePair<Type, object>>.IsReadOnly => true;
 
