@@ -9,7 +9,7 @@ An aggressively optimised, Native AOT-compatible collection library designed for
 
 ## Quick Start
 
-Install the NuGet package:
+Install [the NuGet package](https://www.nuget.org/packages/GameSharp.Collections):
 
 ```bash
 dotnet add package GameSharp.Collections
@@ -105,20 +105,20 @@ The result is a highly flexible architecture ideal for projects where absolute c
 #### Features
 
 - **Zero-allocation $\mathcal{O}(D \log T)$ Polymorphic Queries**: Where $D$ is the number of derived types implementing the queried interface, and $T$ is the total number of unique types.
+
 - **Zero-allocation $\mathcal{O}(\log T)$ Exact Type Queries**: Where $T$ is the total number of unique types stored in the collection.
+
 - **Dynamic Runtime Unloading**: Unloaded assemblies are automatically purged from The Directed Acyclic Graph (DAG).
   > [!IMPORTANT]
   > You must ensure that all instances of a type are removed from the lookup before unloading its assembly context. Otherwise, the lookup will retain stale references to types that no longer exist.
 
 ### TypeLookup
 
-The `TypeLookup` is the primary mutable implementation of `ReadOnlyTypeLookup`. It provides the ability to dynamically add, remove, and clear objects while maintaining the strictly ordered, contiguous internal arrays required by the SIMD search algorithms.
+The `TypeLookup` is the primary mutable implementation of `ReadOnlyTypeLookup`. It provides the ability to dynamically add, remove, and clear objects while maintaining the strictly ordered, contiguous internal arrays.
 
 #### Features
 
-- **$\mathcal{O}(N)$ Insertion & Removal**: Keeps internal lookup tables tightly packed and sorted by precomputed Directed Acyclic Graph (DAG) IDs for blazing-fast reads.
-
-- **Version Tracking**: Includes built-in mutation monitors that will safely throw an `InvalidOperationException` if the collection is modified while being enumerated.
+- **$\mathcal{O}(N)$ Insertion & Removal**: Keeps internal lookup tables tightly packed and sorted by precomputed Directed Acyclic Graph (DAG) IDs.
 
 - **Dynamic Resizing**: Automatically manages internal array capacities as objects of varying types are added.
 
@@ -134,7 +134,7 @@ The `ImmutableTypeLookup` is a thread-safe, immutable variant of the lookup coll
 
 - **Seamless Conversion**: Easily converts to and from mutable `TypeLookup` instances.
 
-#### Builder
+### ImmutableTypeLookup.Builder
 
 The `ImmutableTypeLookup.Builder` is a mutable companion to the immutable lookup. It allows you to perform multiple additions and removals in batches before finally "sealing" the collection into an `ImmutableTypeLookup`. This prevents the allocations and overhead of creating intermediate immutable copies during heavy initialization phases.
 
