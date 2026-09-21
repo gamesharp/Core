@@ -109,8 +109,8 @@ The result is a highly flexible architecture ideal for projects where absolute c
 - **Zero-allocation $\mathcal{O}(\log T)$ Exact Type Queries**: Where $T$ is the total number of unique types stored in the collection.
 
 - **Dynamic Runtime Unloading**: Unloaded assemblies are automatically purged from The Directed Acyclic Graph (DAG).
-  > [!IMPORTANT]
-  > You must ensure that all instances of a type are removed from the lookup before unloading its assembly context. Otherwise, the lookup will retain stale references to types that no longer exist.
+> [!IMPORTANT]
+> You must ensure that all instances of a type are removed from the lookup before unloading its assembly context. Otherwise, the lookup will retain stale references to types that no longer exist.
 
 ### TypeLookup
 
