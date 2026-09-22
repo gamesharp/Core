@@ -1,15 +1,57 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Windows.Win32.System.SystemInformation;
 
 namespace GameSharp.Collections;
 
 /// <summary>
-/// Provides extension methods for the <see cref="PooledList{T}"/> class.
+/// Provides utility methods for working with collections.
 /// </summary>
-public static class Extensions
+public static partial class CollectionUtils
 {
-    private static readonly int _l1ExclSize = ProcessorInfo.Default.LineCacheSizeInBytes - 1;
+    /// <summary>
+    /// Gets an estimate of the size of a cache line in bytes.
+    /// </summary>
+    public const int CacheLineSizeEstimate = 64;
+
+    /// <summary>
+    /// Gets the size of a cache line in bytes or <see cref="CacheLineSizeEstimate"/> if it cannot be determined.
+    /// </summary>
+    public static int CacheLineSize { get; }
+
+    static CollectionUtils()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            foreach (SYSTEM_LOGICAL_PROCESSOR_INFORMATION info in Kernel32.GetLogicalProcessorInformation())
+            {
+                if (info.Relationship != LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache)
+                {
+                    continue;
+                }
+
+                CacheLineSize = info.Anonymous.Cache.LineSize;
+                return;
+            }
+        }
+        else if (OperatingSystem.IsLinux() || OperatingSystem.IsAndroid())
+        {
+            nint lineSize = LibC.SysConf(190); // _SC_LEVEL1_DCACHE_LINESIZE
+            if (lineSize != -1)
+            {
+                CacheLineSize = checked((int)lineSize);
+                return;
+            }
+        }
+        else if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
+        {
+            CacheLineSize = checked((int)LibC.SysCtlByName<long>("hw.cachelinesize"));
+            return;
+        }
+
+        CacheLineSize = CacheLineSizeEstimate;
+    }
 
     /// <inheritdoc cref="Contains{T}(ref PooledList{T}, T, IEqualityComparer{T})"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -98,7 +140,7 @@ public static class Extensions
     {
         int divisor = sizeof(TItem) * 2;
 
-        for (nint byteOffset; (byteOffset = Unsafe.ByteOffset(ref low, ref high)) > _l1ExclSize;)
+        for (nint byteOffset; (byteOffset = Unsafe.ByteOffset(ref low, ref high)) > CacheLineSize;)
         {
             ref TItem mid = ref Unsafe.Add(ref low, byteOffset / divisor);
             switch (mid.CompareTo(value))
