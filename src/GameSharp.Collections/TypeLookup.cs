@@ -373,7 +373,7 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
         ref IntegerLookup first = ref MemoryMarshal.GetReference(lookups), last = ref Unsafe.Add(ref first, lookups.Length - 1);
 
         ref IntegerLookup low = ref first, high = ref last;
-        ref IntegerLookup result = ref CollectionUtils.HybridSearch(ref low, ref high, id, out bool exists);
+        ref IntegerLookup result = ref UnsafeSpanExtensions.HybridSearch(ref low, ref high, id, out bool exists);
 
         int index = IntegerLookup.ElementOffset((int)Unsafe.ByteOffset(in first, in result));
 

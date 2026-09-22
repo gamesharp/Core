@@ -28,7 +28,11 @@ internal static partial class LibC
         return result;
     }
 
-    [SupportedOSPlatform("osx")]
+    [SupportedOSPlatform("macos")]
+    [SupportedOSPlatform("ios")]
+    [SupportedOSPlatform("maccatalyst")]
+    [SupportedOSPlatform("tvos")]
+    [SupportedOSPlatform("freebsd")]
     public static unsafe T SysCtlByName<T>(string name) where T : unmanaged
     {
         Unsafe.SkipInit(out T value);
@@ -44,7 +48,12 @@ internal static partial class LibC
     [LibraryImport("libc"), SupportedOSPlatform("linux"), SupportedOSPlatform("android")]
     private static partial nint sysconf(int name);
 
-    [LibraryImport("libc", StringMarshalling = StringMarshalling.Utf8, SetLastError = true), SupportedOSPlatform("osx")]
+    [SupportedOSPlatform("macos")]
+    [SupportedOSPlatform("ios")]
+    [SupportedOSPlatform("maccatalyst")]
+    [SupportedOSPlatform("tvos")]
+    [SupportedOSPlatform("freebsd")]
+    [LibraryImport("libc", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
     internal static unsafe partial int sysctlbyname(
         string name,
         void* oldp,

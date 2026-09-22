@@ -43,7 +43,7 @@ internal sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
             _intEnum = init.GetEnumerator();
 
             _values = ids.AsSpan();
-            _values.HybridSearch(id, out int byteOffset, out _);
+            _values.GetValueRefOrInsertionPoint(id, out int byteOffset, out _);
             int pivot = ToElementOffset(byteOffset);
             _r1 = pivot.._values.Length;
             _r2 = 0..pivot;
@@ -92,14 +92,14 @@ internal sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
         }
 
         ReadOnlySpan<int> span = _ids.AsSpan();
-        span.HybridSearch(item, out int _, out bool exists);
+        span.GetValueRefOrInsertionPoint(item, out int _, out bool exists);
         return exists;
     }
 
     public int IndexOf(int item)
     {
         ReadOnlySpan<int> span = _ids.AsSpan();
-        span.HybridSearch(item, out int byteOffset, out bool exists);
+        span.GetValueRefOrInsertionPoint(item, out int byteOffset, out bool exists);
         return exists || item == _typeID ? ToElementOffset(byteOffset) : -1;
     }
 
@@ -136,7 +136,7 @@ internal sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
 
     private static int CopyTo(ReadOnlySpan<int> source, int id, Span<int> destination)
     {
-        source.HybridSearch(id, out int byteOffset, out _);
+        source.GetValueRefOrInsertionPoint(id, out int byteOffset, out _);
 
         if (byteOffset == 0)
         {
@@ -203,7 +203,7 @@ internal sealed class DerivedTypeCollection : IList<int>, IReadOnlyList<int>
     private static ImmutableArray<int> InsertSorted(ImmutableArray<int> ids, int id)
     {
         ReadOnlySpan<int> span = ids.AsSpan();
-        span.HybridSearch(id, out int byteOffset, out bool exists);
+        span.GetValueRefOrInsertionPoint(id, out int byteOffset, out bool exists);
 
         if (exists)
         {

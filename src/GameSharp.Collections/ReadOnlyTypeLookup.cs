@@ -628,7 +628,7 @@ public abstract class ReadOnlyTypeLookup : ICollection<KeyValuePair<Type, object
                 pivot = enumerator.Current;
             }
 
-            ref IntegerLookup lookup = ref lookups[startIndex..endIndex].HybridSearch(enumerator.Current, out int byteOffset, out bool exists);
+            ref IntegerLookup lookup = ref lookups[startIndex..endIndex].GetValueRefOrInsertionPoint(enumerator.Current, out int byteOffset, out bool exists);
             if (exists)
             {
                 item = items[lookup.index];

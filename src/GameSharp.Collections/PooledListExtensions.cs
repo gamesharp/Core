@@ -1,58 +1,13 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using Windows.Win32.System.SystemInformation;
 
 namespace GameSharp.Collections;
 
 /// <summary>
-/// Provides utility methods for working with collections.
+/// Provides extension methods for the <see cref="PooledList{T}"/> type.
 /// </summary>
-public static partial class CollectionUtils
+public static class PooledListExtensions
 {
-    /// <summary>
-    /// Gets an estimate of the size of a cache line in bytes.
-    /// </summary>
-    public const int CacheLineSizeEstimate = 64;
-
-    /// <summary>
-    /// Gets the size of a cache line in bytes or <see cref="CacheLineSizeEstimate"/> if it cannot be determined.
-    /// </summary>
-    public static int CacheLineSize { get; }
-
-    static CollectionUtils()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            foreach (SYSTEM_LOGICAL_PROCESSOR_INFORMATION info in Kernel32.GetLogicalProcessorInformation())
-            {
-                if (info.Relationship != LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache)
-                {
-                    continue;
-                }
-
-                CacheLineSize = info.Anonymous.Cache.LineSize;
-                return;
-            }
-        }
-        else if (OperatingSystem.IsLinux() || OperatingSystem.IsAndroid())
-        {
-            nint lineSize = LibC.SysConf(190); // _SC_LEVEL1_DCACHE_LINESIZE
-            if (lineSize != -1)
-            {
-                CacheLineSize = checked((int)lineSize);
-                return;
-            }
-        }
-        else if (OperatingSystem.IsMacOS() || OperatingSystem.IsIOS())
-        {
-            CacheLineSize = checked((int)LibC.SysCtlByName<long>("hw.cachelinesize"));
-            return;
-        }
-
-        CacheLineSize = CacheLineSizeEstimate;
-    }
-
     /// <inheritdoc cref="Contains{T}(ref PooledList{T}, T, IEqualityComparer{T})"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool Contains<T>(this scoped ref PooledList<T> list, T? item) where T : IEquatable<T?>
@@ -132,46 +87,5 @@ public static partial class CollectionUtils
     {
         ReadOnlySpan<T> span = list.AsSpan();
         return span.IndexOf(item, comparer);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static unsafe ref TItem HybridSearch<TItem, TComparand>(ref TItem low, ref TItem high, TComparand value, out bool exists)
-        where TItem : unmanaged, IComparable<TComparand>
-    {
-        int divisor = sizeof(TItem) * 2;
-
-        for (nint byteOffset; (byteOffset = Unsafe.ByteOffset(ref low, ref high)) > CacheLineSize;)
-        {
-            ref TItem mid = ref Unsafe.Add(ref low, byteOffset / divisor);
-            switch (mid.CompareTo(value))
-            {
-                case 0: exists = true; return ref mid;
-                case < 0: low = ref Unsafe.Add(ref mid, 1); break;
-                default: high = ref Unsafe.Subtract(ref mid, 1); break;
-            }
-        }
-
-        for (; Unsafe.IsAddressLessThanOrEqualTo(ref low, ref high); low = ref Unsafe.Add(ref low, 1))
-        {
-            switch (low.CompareTo(value))
-            {
-                case 0: exists = true; return ref low;
-                case < 0: continue;
-            }
-
-            break;
-        }
-
-        exists = false;
-        return ref low;
-    }
-
-    internal static ref TItem HybridSearch<TItem, TComparand>(this ReadOnlySpan<TItem> items, TComparand value, out int byteOffset, out bool exists)
-        where TItem : unmanaged, IComparable<TComparand>
-    {
-        ref TItem data = ref MemoryMarshal.GetReference(items), low = ref data, high = ref Unsafe.Add(ref data, items.Length - 1);
-        ref TItem result = ref HybridSearch(ref low, ref high, value, out exists);
-        byteOffset = (int)Unsafe.ByteOffset(in data, in result);
-        return ref result;
     }
 }
