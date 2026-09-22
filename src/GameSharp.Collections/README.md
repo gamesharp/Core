@@ -146,9 +146,11 @@ The `ImmutableTypeLookup.Builder` is a mutable companion to the immutable lookup
 
 ### PooledList
 
-Manual array pooling is notoriously error-prone. Developers must handle resizing, clear stale references to prevent memory leaks, and guarantee arrays are returned even during exceptions. Adding this boilerplate to hot paths often negates the benefits of pooling entirely.
+Manual array pooling is error-prone: developers must handle resizing, purge stale references, and guarantee buffer disposal during exceptions. Wrapping this boilerplate inside heap-allocated classes adds garbage collection pressure to hot paths, defeating the purpose of pooling.
 
-`PooledList<T>` solves this by acting as a lightweight `ref struct` wrapper around `ArrayPool<T>`. It provides a familiar `List<T>` abstraction that handles dynamic growth, clearing unused references and returning arrays back to the pool. When exclusively passed by reference, the risk of desynchronised state and stale memory references is fully mitigated.
+Established solutions like [Collections.Pooled.PooledList<T>](https://github.com/jtmueller/Collections.Pooled/blob/master/Collections.Pooled/PooledList.cs) or the Community Toolkit's [ArrayPoolBufferWriter<T>](https://github.com/CommunityToolkit/dotnet/blob/main/src/CommunityToolkit.HighPerformance/Buffers/ArrayPoolBufferWriter%7BT%7D.cs) resort to a class because standard C# structs copy by value. Passing a value type across method boundaries creates shallow copies, making stateful operations like dynamic resizing hazardous if a detached copy retains an invalidated buffer reference or outlives disposal. A ref struct bridges this divide: strictly confined to the stack, it prevents boxing, heap escape, and multi-threaded data races by design.
+
+By using a ref struct, PooledList<T> strikes a practical balance between safety and performance. It wraps ArrayPool<T> with the ergonomics of a standard list, handling growth, reference clearing, and pool returns automatically at zero GC cost. While callers must still pass the instance by reference to prevent stack copies from desynchronising during resizes, it eliminates heap allocations entirely without the maintenance burden of raw buffer management.
 
 #### Features
 
