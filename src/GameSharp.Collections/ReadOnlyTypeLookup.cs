@@ -391,6 +391,9 @@ public abstract class ReadOnlyTypeLookup : ICollection<KeyValuePair<Type, object
             return typeInfo.EqualsOrAssignableFrom(_typeInfo);
         }
 
+        /// <inheritdoc cref="IEnumerable{T}.GetEnumerator()"/>
+        public ReadOnlySpan<object>.Enumerator GetEnumerator() => Items.GetEnumerator();
+
         [DoesNotReturn, StackTraceHidden, MethodImpl(MethodImplOptions.NoInlining)]
         private void InvalidCast(Type targetType)
         {
