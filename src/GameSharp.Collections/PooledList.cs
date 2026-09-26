@@ -450,6 +450,33 @@ public static class PooledList
     }
 
     /// <summary>
+    /// Creates a <see cref="PooledList{T}"/> with the specified number of elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements stored in the list.</typeparam>
+    /// <param name="count">The number of elements in the list.</param>
+    /// <returns>A new instance of <see cref="PooledList{T}"/> with the specified number of elements.</returns>
+    public static PooledList<T> Init<T>(int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        PooledList<T> result = new(count, count);
+        if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+        {
+            result.Clear();
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a <see cref="PooledList{T}"/> with the specified number of elements while skipping initialization, if possible.
+    /// </summary>
+    /// <inheritdoc cref="Init{T}"/>
+    public static PooledList<T> SkipInit<T>(int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        return new PooledList<T>(count, count);
+    }
+
+    /// <summary>
     /// Creates a <see cref="PooledList{T}"/> from the specified <see cref="List{T}"/>.
     /// </summary>
     /// <typeparam name="T">The type of elements stored in the list.</typeparam>
