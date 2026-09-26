@@ -174,6 +174,55 @@ public ref struct PooledList<T>
         _count = 0;
     }
 
+    /// <summary>
+    /// Attempts to remove and return the last element of the list.
+    /// </summary>
+    /// <param name="item">
+    /// When this method returns, contains the removed element if the list is not empty; 
+    /// otherwise, the default value for the type.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> if an element was removed and returned; 
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
+    public bool TryTake([MaybeNullWhen(false)] out T item)
+    {
+        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+
+        if (_count == 0)
+        {
+            item = default;
+            return false;
+        }
+
+        ref T? itemRef = ref Unsafe.Add(ref data, --_count);
+        item = itemRef!;
+        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+        {
+            itemRef = default;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Removes and returns the last element of the list.
+    /// </summary>
+    /// <returns>The last element of the list.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the list is empty.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public T Take()
+    {
+        if (!TryTake(out T? item))
+        {
+            ListHasNoElements();
+        }
+
+        return item!;
+    }
+
     internal void RemoveAtUnsafe(int index)
     {
         int newCount = _count - 1;
@@ -421,6 +470,12 @@ public ref struct PooledList<T>
     private static void ThrowOutOfMemoryException()
     {
         throw new OutOfMemoryException("The requested capacity exceeds the maximum allowed size.");
+    }
+
+    [DoesNotReturn, StackTraceHidden, MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ListHasNoElements()
+    {
+        throw new InvalidOperationException("The list is empty.");
     }
 
     /// <summary>
