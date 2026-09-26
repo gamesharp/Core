@@ -117,6 +117,26 @@ public ref struct PooledList<T>
     }
 
     /// <summary>
+    /// Adds a range of elements to the end of the list.
+    /// </summary>
+    /// <param name="items">The elements to add.</param>
+    public void AddRange(ReadOnlySpan<T> items)
+    {
+        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+
+        if (items.IsEmpty)
+        {
+            return;
+        }
+
+        int index = _count, newCount = index + items.Length;
+        EnsureCapacity(newCount);
+        Span<T> dst = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref data, index), items.Length)!;
+        items.CopyTo(dst);
+        _count = newCount;
+    }
+
+    /// <summary>
     /// Inserts an element at the specified index in the list.
     /// </summary>
     /// <param name="item">The element to insert.</param>
