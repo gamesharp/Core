@@ -103,6 +103,24 @@ public ref struct PooledList<T>
     }
 
     /// <summary>
+    /// Converts the <see cref="PooledList{T}"/> to an <see cref="IMemoryOwner{T}"/> that owns the underlying array.
+    /// </summary>
+    /// <remarks>
+    /// Subsequent operations on the <see cref="PooledList{T}"/> after calling this method will throw 
+    /// an <see cref="ObjectDisposedException"/>.
+    /// </remarks>
+    /// <returns>An <see cref="IMemoryOwner{T}"/> that owns the underlying array.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
+    public IMemoryOwner<T> ToMemoryOwner()
+    {
+        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+        PooledMemoryOwner<T> owner = new(_array, _count);
+        _array = null;
+        data = ref Unsafe.NullRef<T?>();
+        return owner;
+    }
+
+    /// <summary>
     /// Adds an element to the end of the list.
     /// </summary>
     /// <param name="item">The element to add.</param>
