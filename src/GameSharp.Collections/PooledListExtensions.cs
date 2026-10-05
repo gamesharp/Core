@@ -1,5 +1,7 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace GameSharp.Collections;
 
@@ -8,6 +10,26 @@ namespace GameSharp.Collections;
 /// </summary>
 public static class PooledListExtensions
 {
+    /// <summary>
+    /// Waits for all the tasks in the <see cref="PooledList{Task}"/> to complete and returns 
+    /// a single task that represents the completion of all the tasks.
+    /// </summary>
+    /// <remarks>
+    /// Subsequent operations on the <see cref="PooledList{T}"/> after calling this method will throw 
+    /// an <see cref="ObjectDisposedException"/>.
+    /// </remarks>
+    /// <param name="tasks">The list of tasks to wait for.</param>
+    /// <returns>A task that represents the completion of all the tasks.</returns>
+    public static Task WhenAll(this scoped ref PooledList<Task> tasks)
+    {
+        ObjectDisposedException.ThrowIf(tasks.array is null, typeof(PooledList<Task>));
+        Task waitAndReturn = WaitAndReturnAsync(Unsafe.As<object[]>(tasks.array), tasks.count);
+        tasks.array = null;
+        tasks.data = ref Unsafe.NullRef<Task?>();
+        tasks.count = 0;
+        return waitAndReturn;
+    }
+
     /// <inheritdoc cref="Contains{T}(ref PooledList{T}, T, IEqualityComparer{T})"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool Contains<T>(this scoped ref PooledList<T> list, T? item) where T : IEquatable<T?>
@@ -87,5 +109,15 @@ public static class PooledListExtensions
     {
         ReadOnlySpan<T> span = list.AsSpan();
         return span.IndexOf(item, comparer);
+    }
+
+    private static async Task WaitAndReturnAsync(object[] array, int count)
+    {
+        ref Task data = ref Unsafe.As<object, Task>(ref MemoryMarshal.GetArrayDataReference(array));
+        ReadOnlySpan<Task> tasks = MemoryMarshal.CreateReadOnlySpan(ref data, count);
+        Task wait = Task.WhenAll(tasks);
+        await wait.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        ArrayPool<object>.Shared.Return(array, clearArray: true);
+        wait.GetAwaiter().GetResult();
     }
 }

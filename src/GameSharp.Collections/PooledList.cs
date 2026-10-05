@@ -13,36 +13,36 @@ namespace GameSharp.Collections;
 /// <typeparam name="T">The type of elements stored in the list.</typeparam>
 public ref struct PooledList<T>
 {
-    private Array? _array;
+    internal Array? array;
     internal ref T? data;
-    private int _count;
+    internal int count;
 
     /// <summary>
     /// Gets the number of elements contained in the list.
     /// </summary>
     public int Count
     {
-        readonly get => _count;
+        readonly get => count;
         set
         {
-            if (value == _count)
+            if (value == count)
             {
                 return;
             } 
 
             ArgumentOutOfRangeException.ThrowIfNegative(value);
 
-            if (value > _count)
+            if (value > count)
             {
                 EnsureCapacity(value);
             }
             else if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                Span<T?> span = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref data, value), _count - value);
+                Span<T?> span = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref data, value), count - value);
                 span.Clear();
             }
 
-            _count = value;
+            count = value;
         }
     }
 
@@ -55,13 +55,13 @@ public ref struct PooledList<T>
     {
         get
         {
-            ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+            ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
             ThrowIfIndexOutOfRange(index);
             return Unsafe.Add(ref data!, index);
         }
         set
         {
-            ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+            ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
             ThrowIfIndexOutOfRange(index);
             Unsafe.Add(ref data, index) = value;
         }
@@ -78,7 +78,7 @@ public ref struct PooledList<T>
             int byteLength = ComputeByteLength(capacity);
             Rent(byteLength);
         }
-        _count = count;
+        this.count = count;
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public ref struct PooledList<T>
             int byteLength = ComputeByteLength(initialCapacity);
             Rent(byteLength);
         }
-        _count = 0;
+        count = 0;
     }
 
     /// <summary>
@@ -113,9 +113,9 @@ public ref struct PooledList<T>
     /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
     public IMemoryOwner<T> ToMemoryOwner()
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
-        PooledMemoryOwner<T> owner = new(_array, _count);
-        _array = null;
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
+        PooledMemoryOwner<T> owner = new(array, count);
+        array = null;
         data = ref Unsafe.NullRef<T?>();
         return owner;
     }
@@ -127,11 +127,11 @@ public ref struct PooledList<T>
     /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
     public void Add(T item)
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
-        int index = _count, newCount = index + 1;
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
+        int index = count, newCount = index + 1;
         EnsureCapacity(newCount);
         Unsafe.Add(ref data, index) = item;
-        _count = newCount;
+        count = newCount;
     }
 
     /// <summary>
@@ -140,18 +140,18 @@ public ref struct PooledList<T>
     /// <param name="items">The elements to add.</param>
     public void AddRange(ReadOnlySpan<T> items)
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
 
         if (items.IsEmpty)
         {
             return;
         }
 
-        int index = _count, newCount = index + items.Length;
+        int index = count, newCount = index + items.Length;
         EnsureCapacity(newCount);
         Span<T> dst = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref data, index), items.Length)!;
         items.CopyTo(dst);
-        _count = newCount;
+        count = newCount;
     }
 
     /// <summary>
@@ -163,13 +163,13 @@ public ref struct PooledList<T>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the index is out of range.</exception>
     public void Insert(T item, int index)
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
-        if ((uint)index > (uint)_count)
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
+        if ((uint)index > (uint)count)
         {
             IndexWasOutOfRange(index, nameof(index));
         }
 
-        int lastIndex = _count, newCount = lastIndex + 1;
+        int lastIndex = count, newCount = lastIndex + 1;
         EnsureCapacity(newCount);
 
         if (index != lastIndex)
@@ -181,7 +181,7 @@ public ref struct PooledList<T>
         }
 
         Unsafe.Add(ref data, index) = item;
-        _count = newCount;
+        count = newCount;
     }
 
     /// <summary>
@@ -192,7 +192,7 @@ public ref struct PooledList<T>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the index is out of range.</exception>
     public void RemoveAt(int index)
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
         ThrowIfIndexOutOfRange(index);
         RemoveAtUnsafe(index);
     }
@@ -203,13 +203,13 @@ public ref struct PooledList<T>
     /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
     public void Clear()
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
         {
-            Span<T?> span = MemoryMarshal.CreateSpan(ref data, _count);
+            Span<T?> span = MemoryMarshal.CreateSpan(ref data, count);
             span.Clear();
         }
-        _count = 0;
+        count = 0;
     }
 
     /// <summary>
@@ -226,15 +226,15 @@ public ref struct PooledList<T>
     /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
     public bool TryTake([MaybeNullWhen(false)] out T item)
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
 
-        if (_count == 0)
+        if (count == 0)
         {
             item = default;
             return false;
         }
 
-        ref T? itemRef = ref Unsafe.Add(ref data, --_count);
+        ref T? itemRef = ref Unsafe.Add(ref data, --count);
         item = itemRef!;
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
         {
@@ -263,7 +263,7 @@ public ref struct PooledList<T>
 
     internal void RemoveAtUnsafe(int index)
     {
-        int newCount = _count - 1;
+        int newCount = count - 1;
 
         if (index != newCount)
         {
@@ -278,7 +278,7 @@ public ref struct PooledList<T>
             Unsafe.Add(ref data, newCount) = default!;
         }
 
-        _count = newCount;
+        count = newCount;
     }
 
     /// <summary>
@@ -289,20 +289,20 @@ public ref struct PooledList<T>
     /// <exception cref="ObjectDisposedException">Thrown when the list has been disposed.</exception>
     public readonly Span<T> AsSpan()
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
-        return MemoryMarshal.CreateSpan(ref data!, _count);
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
+        return MemoryMarshal.CreateSpan(ref data!, count);
     }
 
     /// <inheritdoc cref="AsSpan(int, int)"/>
     public readonly Span<T> AsSpan(int index)
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
-        if ((uint)index > (uint)_count)
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
+        if ((uint)index > (uint)count)
         {
             IndexWasOutOfRange(index, nameof(index));
         }
 
-        return MemoryMarshal.CreateSpan(ref Unsafe.Add(ref data!, index), _count - index);
+        return MemoryMarshal.CreateSpan(ref Unsafe.Add(ref data!, index), count - index);
     }
 
     /// <summary>
@@ -316,8 +316,8 @@ public ref struct PooledList<T>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the index or length is out of range.</exception>
     public readonly Span<T> AsSpan(int index, int length)
     {
-        ObjectDisposedException.ThrowIf(_array is null, typeof(PooledList<T>));
-        if ((uint)index > (uint)_count || (uint)length > (uint)(_count - index))
+        ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
+        if ((uint)index > (uint)count || (uint)length > (uint)(count - index))
         {
             IndexWasOutOfRange(length, nameof(length));
         }
@@ -328,13 +328,13 @@ public ref struct PooledList<T>
     /// <inheritdoc cref="IDisposable.Dispose"/>
     public void Dispose()
     {
-        if (_array is { })
+        if (array is { })
         {
-            Return(_array);
+            Return(array);
             data = ref Unsafe.NullRef<T?>();
         }
 
-        _array = null;
+        array = null;
     }
 
     /// <summary>
@@ -359,7 +359,7 @@ public ref struct PooledList<T>
     /// </exception>
     public readonly void CopyTo(int startIndex, T[] array)
     {
-        ThrowHelpers.ThrowIfArrayIndexIsOutOfRange(startIndex, array, _count);
+        ThrowHelpers.ThrowIfArrayIndexIsOutOfRange(startIndex, array, count);
         AsSpan().CopyTo(array.AsSpan(startIndex));
     }
 
@@ -378,7 +378,7 @@ public ref struct PooledList<T>
     {
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
         {
-            if (_array!.Length < minimumLength)
+            if (array!.Length < minimumLength)
             {
                 Grow(minimumLength);
             }
@@ -386,7 +386,7 @@ public ref struct PooledList<T>
         else
         {
             int byteLength = ComputeByteLength(minimumLength);
-            if (_array!.Length < byteLength)
+            if (array!.Length < byteLength)
             {
                 Grow(byteLength);
             }
@@ -396,17 +396,17 @@ public ref struct PooledList<T>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void Grow(int minimumLength)
     {
-        int capacity = Math.Max(_array!.Length, 2);
+        int capacity = Math.Max(array!.Length, 2);
         do
         {
             capacity += capacity >> 1;
         }
         while (capacity < minimumLength);
 
-        Array oldArray = _array;
-        ReadOnlySpan<T?> src = MemoryMarshal.CreateReadOnlySpan(ref data, _count);
+        Array oldArray = array;
+        ReadOnlySpan<T?> src = MemoryMarshal.CreateReadOnlySpan(ref data, count);
         Rent(capacity);
-        Span<T?> dst = MemoryMarshal.CreateSpan(ref data, _count);
+        Span<T?> dst = MemoryMarshal.CreateSpan(ref data, count);
         src.CopyTo(dst);
 
         Return(oldArray);
@@ -435,7 +435,7 @@ public ref struct PooledList<T>
     private void RentTypedArray(int minimumLength)
     {
         T[] itemArray = ArrayPool<T>.Shared.Rent(minimumLength);
-        _array = itemArray;
+        array = itemArray;
 
         data = ref MemoryMarshal.GetArrayDataReference(itemArray)!;
     }
@@ -443,7 +443,7 @@ public ref struct PooledList<T>
     private void RentByteArray(int minimumLength)
     {
         byte[] byteArray = ArrayPool<byte>.Shared.Rent(minimumLength);
-        _array = byteArray;
+        array = byteArray;
 
         ref byte byteRef = ref MemoryMarshal.GetArrayDataReference(byteArray);
         data = ref Unsafe.As<byte, T>(ref byteRef)!;
@@ -452,7 +452,7 @@ public ref struct PooledList<T>
     private void RentObjectArray(int minimumLength)
     {
         object[] objArray = ArrayPool<object>.Shared.Rent(minimumLength);
-        _array = objArray;
+        array = objArray;
 
         ref object objRef = ref MemoryMarshal.GetArrayDataReference(objArray);
         data = ref Unsafe.As<object, T>(ref objRef)!;
@@ -492,7 +492,7 @@ public ref struct PooledList<T>
     [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
     private readonly void ThrowIfIndexOutOfRange(int index, [CallerArgumentExpression(nameof(index))] string? paramName = null)
     {
-        if ((uint)index >= (uint)_count)
+        if ((uint)index >= (uint)count)
         {
             IndexWasOutOfRange(index, paramName);
         }
