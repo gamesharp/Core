@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,7 +33,7 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
             Task starting = Lifetime.OnStartingAsync();
             await starting.ConfigureAwait(false);
 
-            Lifetime.Complete(Lifetime.Main, "Main");
+            Lifetime.Complete(Lifetime.Main.Stage, "Main");
         }
     }
 
@@ -86,11 +82,17 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
     /// <summary>
     /// Gets information about the startup stage of the asynchronous lifetime.
     /// </summary>
-    public StageInfo Startup { get; }
+    protected StageInfo Startup { get; }
 
-    private LifecycleStage Main { get; }
+    /// <summary>
+    /// Gets information about the main stage of the asynchronous lifetime.
+    /// </summary>
+    protected StageInfo Main { get; }
 
-    private LifecycleStage Stopping { get; }
+    /// <summary>
+    /// Gets information about the stopping stage of the asynchronous lifetime.
+    /// </summary>
+    protected StageInfo Shutdown { get; }
 
     /// <summary>
     /// Gets information about the disposal stage of the asynchronous lifetime.
@@ -104,8 +106,8 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
     {
         Cts = new CancellationTokenSource();
         Startup = new StageInfo { Stage = new StartingStage(this) };
-        Main = new LifecycleStage(this, ExecuteAsync);
-        Stopping = new LifecycleStage(this, OnStoppingAsync);
+        Main = new StageInfo { Stage = new LifecycleStage(this, ExecuteAsync) };
+        Shutdown = new StageInfo { Stage = new LifecycleStage(this, OnStoppingAsync) };
         Disposal = new StageInfo { Stage = new DisposingStage(this) };
     }
 
@@ -144,20 +146,20 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
     /// </summary>
     /// <returns><see langword="true"/> if the stopping stage was successfully started; otherwise, <see langword="false"/>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryStop() => TryComplete(Stopping);
+    public bool TryStop() => TryComplete(Shutdown.Stage);
 
     /// <summary>
     /// Signals the stopping stage of the lifetime, allowing for graceful shutdown of asynchronous operations.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Stop() => Complete(Stopping);
+    public void Stop() => Complete(Shutdown.Stage);
 
     /// <inheritdoc cref="StopAsync(CancellationToken)"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Task StopAsync()
     {
-        TryComplete(Stopping);
-        return Stopping.Task;
+        TryComplete(Shutdown.Stage);
+        return Shutdown.Stage.Task;
     }
 
     /// <summary>
@@ -184,7 +186,7 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
     /// Gets an awaiter for the stopping stage of the lifetime.
     /// </summary>
     /// <returns>An <see cref="AsyncLifetime{TSelf}.AsyncStage"/> that can be awaited.</returns>
-    public AsyncStage GetAwaiter() => Stopping;
+    public AsyncStage GetAwaiter() => Shutdown.Stage;
 
     /// <inheritdoc/>
     public void Dispose()
@@ -196,7 +198,7 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        TryComplete(Stopping);
+        TryComplete(Shutdown.Stage);
 
         if (TryComplete(Disposal.Stage))
         {
@@ -231,7 +233,7 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
     /// <returns>A task that represents the main asynchronous operation.</returns>
     protected virtual Task ExecuteAsync()
     {
-        return Stopping.Task;
+        return Shutdown.Stage.Task;
     }
 
     /// <summary>
@@ -265,208 +267,9 @@ public abstract class AsyncLifecycle : AsyncLifetime<AsyncLifecycle>, IDisposabl
     {
         if (disposing)
         {
-            TryComplete(Stopping);
+            TryComplete(Shutdown.Stage);
             TryComplete(Disposal.Stage);
         }
-    }
-
-    /// <inheritdoc cref="DisposeAll(ReadOnlySpan{AsyncLifecycle})"/>
-    protected static Task DisposeAll(IEnumerable<AsyncLifecycle> lifecycles)
-    {
-        if (TryGetNonEnumeratedCount(lifecycles, out int count))
-        {
-            if (count == 0)
-            {
-                return Task.CompletedTask;
-            }
-
-            Task[] taskArray = ArrayPool<Task>.Shared.Rent(count);
-            ref Task taskRef = ref GetArrayDataReference(taskArray);
-            int i = 0;
-
-            foreach (AsyncLifecycle lifecycle in lifecycles)
-            {
-                ValueTask dispose = lifecycle.DisposeAsync();
-                if (!dispose.IsCompletedSuccessfully)
-                {
-                    Unsafe.Add(ref taskRef, i++) = dispose.AsTask();
-                }
-            }
-
-            return WaitAndReturnAsync(taskArray, i);
-        }
-
-        List<Task> tasks = [];
-
-        foreach (AsyncLifecycle lifecycle in lifecycles)
-        {
-            ValueTask dispose = lifecycle.DisposeAsync();
-            if (!dispose.IsCompletedSuccessfully)
-            {
-                tasks.Add(dispose.AsTask());
-            }
-        }
-
-        return Task.WhenAll(tasks);
-    }
-
-    /// <summary>
-    /// Disposes all the specified <see cref="AsyncLifecycle"/> instances asynchronously.
-    /// </summary>
-    /// <param name="lifecycles">The lifecycles to dispose.</param>
-    /// <returns>A task that represents the asynchronous dispose operation.</returns>
-    protected static Task DisposeAll(ReadOnlySpan<AsyncLifecycle> lifecycles)
-    {
-        if (lifecycles.IsEmpty)
-        {
-            return Task.CompletedTask;
-        }
-
-        Task[] taskArray = ArrayPool<Task>.Shared.Rent(lifecycles.Length);
-        Span<Task> tasks = new(taskArray, 0, lifecycles.Length);
-        ref AsyncLifecycle lifecycleRef = ref MemoryMarshal.GetReference(lifecycles);
-        int i = 0;
-
-        foreach (ref Task task in tasks)
-        {
-            ValueTask dispose = lifecycleRef.DisposeAsync();
-            if (!dispose.IsCompletedSuccessfully)
-            {
-                task = dispose.AsTask();
-                i++;
-            }
-            lifecycleRef = ref Unsafe.Add(ref lifecycleRef, 1);
-        }
-
-        return WaitAndReturnAsync(taskArray, i);
-    }
-
-    /// <inheritdoc cref="WhenAll(ReadOnlySpan{AsyncLifecycle})"/>
-    protected static Task WhenAll(IEnumerable<AsyncLifecycle> lifecycles)
-    {
-        if (TryGetNonEnumeratedCount(lifecycles, out int count))
-        {
-            if (count == 0)
-            {
-                return Task.CompletedTask;
-            }
-
-            Task[] taskArray = ArrayPool<Task>.Shared.Rent(count);
-            ref Task taskRef = ref GetArrayDataReference(taskArray);
-            foreach (AsyncLifecycle lifecycle in lifecycles)
-            {
-                if (!lifecycle.Stopping.TryGetTask(out taskRef!))
-                {
-                    taskRef = Task.CompletedTask;
-                }
-
-                taskRef = ref Unsafe.Add(ref taskRef, 1);
-            }
-
-            return WaitAndReturnAsync(taskArray, count);
-        }
-
-        List<Task> tasks = [];
-
-        foreach (AsyncLifecycle lifecycle in lifecycles)
-        {
-            if (lifecycle.Stopping.TryGetTask(out Task? task))
-            {
-                tasks.Add(task);
-            }
-        }
-
-        return Task.WhenAll(tasks);
-    }
-
-    /// <summary>
-    /// Waits for all the specified <see cref="AsyncLifecycle"/> instances to complete their stopping stage.
-    /// </summary>
-    /// <param name="lifecycles">The lifecycles to wait for.</param>
-    /// <returns>A task that represents the asynchronous wait operation.</returns>
-    protected static Task WhenAll(ReadOnlySpan<AsyncLifecycle> lifecycles)
-    {
-        if (lifecycles.IsEmpty)
-        {
-            return Task.CompletedTask;
-        }
-
-        Task[] taskArray = ArrayPool<Task>.Shared.Rent(lifecycles.Length);
-        Span<Task> tasks = new(taskArray, 0, lifecycles.Length);
-
-        ref AsyncLifecycle lifecycleRef = ref MemoryMarshal.GetReference(lifecycles);
-
-        foreach (ref Task task in tasks)
-        {
-            if (!lifecycleRef.Stopping.TryGetTask(out task!))
-            {
-                task = Task.CompletedTask;
-            }
-
-            lifecycleRef = ref Unsafe.Add(ref lifecycleRef, 1);
-        }
-
-        return WaitAndReturnAsync(taskArray, lifecycles.Length);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref Task GetArrayDataReference(Task[] array)
-    {
-#if NET5_0_OR_GREATER
-        return ref MemoryMarshal.GetArrayDataReference(array);
-#else
-        return ref array[0];
-#endif
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryGetNonEnumeratedCount(IEnumerable<AsyncLifecycle> lifecycles, out int count)
-    {
-#if NET6_0_OR_GREATER
-        return System.Linq.Enumerable.TryGetNonEnumeratedCount(lifecycles, out count);
-    }
-#else
-        return TryGetNonEnumeratedCountImpl(lifecycles, out count);
-    }
-
-    private static bool TryGetNonEnumeratedCountImpl(IEnumerable<AsyncLifecycle> lifecycles, out int count)
-    {
-        switch (lifecycles)
-        {
-            case ICollection<AsyncLifecycle> collection: count = collection.Count; return true;
-            case IReadOnlyCollection<AsyncLifecycle> collection: count = collection.Count; return true;
-            case System.Collections.ICollection collection: count = collection.Count; return true;
-            default: Unsafe.SkipInit(out count); return false;
-        }
-    }
-#endif
-
-    private static async Task WaitAndReturnAsync(Task[] taskArray, int count)
-    {
-#if NET8_0_OR_GREATER
-        Task wait = Task.WhenAll(taskArray.AsSpan(0, count));
-        await wait.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        ArrayPool<Task>.Shared.Return(taskArray, clearArray: true);
-        if (!wait.IsCompletedSuccessfully)
-        {
-            Throw(wait.Exception!);
-        }
-#else
-        if (count < taskArray.Length)
-        {
-            Span<Task> remainingTasks = taskArray.AsSpan(count);
-            remainingTasks.Fill(Task.CompletedTask);
-        }
-        try
-        {
-            Task wait = Task.WhenAll(taskArray);
-            await wait.ConfigureAwait(false);
-        }
-        finally
-        {
-            ArrayPool<Task>.Shared.Return(taskArray, clearArray: true);
-        }
-#endif
     }
 
 #if NET6_0_OR_GREATER
