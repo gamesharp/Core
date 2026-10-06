@@ -54,12 +54,23 @@ public static class AsyncEventPublisher
         }
     }
 
+    /// <summary>
+    /// Creates a parameterless asynchronous event publisher that allows publishing events to subscribed listeners.
+    /// </summary>
+    /// <param name="logger">The logger to use for logging events.</param>
+    /// <returns>A parameterless asynchronous event publisher.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ParameterlessAsyncEventPublisher<object?, TimeSpan> Create(ILogger logger)
     {
         return Create<object?>(logger);
     }
 
+    /// <summary>
+    /// Creates a parameterless asynchronous event publisher that allows publishing events to subscribed listeners.
+    /// </summary>
+    /// <typeparam name="TSender">The type of the sender.</typeparam>
+    /// <param name="logger">The logger to use for logging events.</param>
+    /// <returns>A parameterless asynchronous event publisher.</returns>
     public static ParameterlessAsyncEventPublisher<TSender, TimeSpan> Create<TSender>(ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -67,12 +78,20 @@ public static class AsyncEventPublisher
         return new ParameterlessAsyncEventPublisher<TSender, TimeSpan>(eventBus, logger);
     }
 
+    /// <inheritdoc cref="CreateQueue{TSender, TEventArgs}(ILogger)"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static AsyncEventPublisher<object?, TEventArgs> CreateQueue<TEventArgs>(ILogger logger)
     {
         return CreateQueue<object?, TEventArgs>(logger);
     }
 
+    /// <summary>
+    /// Creates an asynchronous event publisher that allows publishing events to subscribed listeners.
+    /// </summary>
+    /// <typeparam name="TSender">The type of the sender.</typeparam>
+    /// <typeparam name="TEventArgs">The type of the event arguments.</typeparam>
+    /// <param name="logger">The logger to use for logging events.</param>
+    /// <returns>An asynchronous event publisher.</returns>
     public static AsyncEventPublisher<TSender, TEventArgs> CreateQueue<TSender, TEventArgs>(ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -80,12 +99,20 @@ public static class AsyncEventPublisher
         return new AsyncEventPublisher<TSender, TEventArgs>(eventBus);
     }
 
+    /// <inheritdoc cref="CreateConflating{TSender, TEventArgs}(ILogger)"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static AsyncEventPublisher<object?, TEventArgs> CreateConflating<TEventArgs>(ILogger logger)
     {
         return CreateConflating<object?, TEventArgs>(logger);
     }
 
+    /// <summary>
+    /// Creates an asynchronous event publisher that allows publishing events to subscribed listeners, with conflation support.
+    /// </summary>
+    /// <typeparam name="TSender">The type of the sender.</typeparam>
+    /// <typeparam name="TEventArgs">The type of the event arguments.</typeparam>
+    /// <param name="logger">The logger to use for logging events.</param>
+    /// <returns>An asynchronous event publisher.</returns>
     public static AsyncEventPublisher<TSender, TEventArgs> CreateConflating<TSender, TEventArgs>(ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -161,10 +188,18 @@ public static class AsyncEventPublisher
     }
 }
 
+/// <summary>
+/// Represents an asynchronous event publisher that allows publishing events to subscribed listeners.
+/// </summary>
+/// <typeparam name="TSender">The type of the sender.</typeparam>
+/// <typeparam name="TEventArgs">The type of the event arguments.</typeparam>
 public readonly struct AsyncEventPublisher<TSender, TEventArgs> : IDisposable, IAsyncDisposable
 {
     private readonly AsyncEventBus<TSender, TEventArgs> _eventBus;
 
+    /// <summary>
+    /// Gets the asynchronous event that can be subscribed to by listeners.
+    /// </summary>
     public AsyncEvent<TSender, TEventArgs> Event { get; }
 
     internal AsyncEventPublisher(AsyncEventBus<TSender, TEventArgs> eventBus)
