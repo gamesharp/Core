@@ -34,7 +34,7 @@ public static class AsyncEventPublisher
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask ExecuteAsync(AsyncEventListener<TSender, TEventArgs> listener)
         {
-            var typedListener = Utils.UnsafeCast<IAsyncEventListener<TSender, TEventArgs>>(listener);
+            var typedListener = listener.UnsafeCast<IAsyncEventListener<TSender, TEventArgs>>();
             return typedListener.InvokeAsync(sender, eventArgs, cancellationToken);
         }
     }
@@ -49,7 +49,7 @@ public static class AsyncEventPublisher
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask ExecuteAsync(AsyncEventListener<TSender, TEventArgs> listener)
         {
-            var typedListener = Utils.UnsafeCast<IAsyncEventListener<TSender>>(listener);
+            var typedListener = listener.UnsafeCast<IAsyncEventListener<TSender>>();
             return typedListener.InvokeAsync(sender, cancellationToken);
         }
     }
@@ -181,7 +181,7 @@ public readonly struct AsyncEventPublisher<TSender, TEventArgs> : IDisposable, I
     {
         foreach (AsyncEventListener<TSender, TEventArgs> listener in _eventBus)
         {
-            var typedListener = Utils.UnsafeCast<IAsyncEventListener<TSender, TEventArgs>>(listener);
+            var typedListener = listener.UnsafeCast<IAsyncEventListener<TSender, TEventArgs>>();
             typedListener.Invoke(sender, e, cancellationToken);
         }
     }

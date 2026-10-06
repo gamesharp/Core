@@ -9,8 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GameSharp\GameSharp.csproj" />
-    <Compile Include="..\Shared\Utils.cs" LinkBase="Shared" />
-    <Compile Include="..\Shared\RentedArray.cs" LinkBase="Shared" />
   </ItemGroup>
 
   <ItemGroup>
