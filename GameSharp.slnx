@@ -9,6 +9,7 @@
   <Folder Name="/src/">
     <Project Path="src/GameSharp.Collections/GameSharp.Collections.csproj" />
     <Project Path="src/GameSharp.Events/GameSharp.Events.csproj" />
+    <Project Path="src/GameSharp.Random/GameSharp.Random.csproj" />
     <Project Path="src/GameSharp.Sandbox.Client/GameSharp.Sandbox.Client.csproj" />
     <Project Path="src/GameSharp.Sandbox.Host.Dotnet/GameSharp.Sandbox.Host.Dotnet.csproj" />
     <Project Path="src/GameSharp.Sandbox.Host.Java/GameSharp.Sandbox.Host.Java.csproj" />
