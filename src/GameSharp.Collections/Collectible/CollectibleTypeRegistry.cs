@@ -1,17 +1,17 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 
 namespace GameSharp.Collections.Collectible;
 
 internal sealed class CollectibleTypeRegistry(short id) : TypeRegistry(id), IDisposable
 {
     private readonly ReaderWriterLockSlim _syncRoot = new(LockRecursionPolicy.NoRecursion);
-    private readonly ManualResetEventSlim _drained = new(initialState: true);
-    private int _state;
+    private readonly CountdownEvent _activeOps = new(initialCount: 0);
+    private bool _disposed;
 
     public override TypeInfo Get(int id)
     {
-        ObjectDisposedException.ThrowIf(!TryIncrementActiveOperations(), this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        _activeOps.AddCount();
         _syncRoot.EnterReadLock();
 
         try
@@ -21,13 +21,14 @@ internal sealed class CollectibleTypeRegistry(short id) : TypeRegistry(id), IDis
         finally
         {
             _syncRoot.ExitReadLock();
-            DecrementActiveOperations();
+            _activeOps.Signal();
         }
     }
 
     public override bool GetOrAdd(Type type, [NotNull] out TypeInfo? typeInfo)
     {
-        ObjectDisposedException.ThrowIf(!TryIncrementActiveOperations(), this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        _activeOps.AddCount();
         _syncRoot.EnterUpgradeableReadLock();
 
         try
@@ -51,13 +52,14 @@ internal sealed class CollectibleTypeRegistry(short id) : TypeRegistry(id), IDis
         finally
         {
             _syncRoot.ExitUpgradeableReadLock();
-            DecrementActiveOperations();
+            _activeOps.Signal();
         }
     }
 
     public override bool TryGet(Type type, [MaybeNullWhen(false)] out TypeInfo typeInfo)
     {
-        ObjectDisposedException.ThrowIf(!TryIncrementActiveOperations(), this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        _activeOps.AddCount();
         _syncRoot.EnterReadLock();
 
         try
@@ -67,31 +69,26 @@ internal sealed class CollectibleTypeRegistry(short id) : TypeRegistry(id), IDis
         finally
         {
             _syncRoot.ExitReadLock();
-            DecrementActiveOperations();
+            _activeOps.Signal();
         }
     }
 
     public void Dispose()
     {
-        int currState = Interlocked.Exchange(ref _state, -1);
-
-        if (currState == -1)
+        if (Interlocked.Exchange(ref _disposed, true))
         {
             return;
         }
 
-        if (currState > 0)
-        {
-            _drained.Wait();
-        }
-
-        _drained.Dispose();
+        _activeOps.Wait();
+        _activeOps.Dispose();
         _syncRoot.Dispose();
     }
 
     public override PurgeContext GetPurgeContext()
     {
-        ObjectDisposedException.ThrowIf(!TryIncrementActiveOperations(), this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        _activeOps.AddCount();
         _syncRoot.EnterReadLock();
         return base.GetPurgeContext();
     }
@@ -99,36 +96,6 @@ internal sealed class CollectibleTypeRegistry(short id) : TypeRegistry(id), IDis
     protected override void CompletePurge()
     {
         _syncRoot.ExitReadLock();
-        DecrementActiveOperations();
-    }
-
-    private bool TryIncrementActiveOperations()
-    {
-        int currState = Volatile.Read(ref _state), prevState;
-
-        do
-        {
-            if (currState == -1)
-            {
-                return false;
-            }
-
-            int nextState = currState + 1;
-            (currState, prevState) = (Interlocked.CompareExchange(ref _state, nextState, currState), currState);
-        }
-        while (prevState != currState);
-
-        _drained.Reset();
-
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void DecrementActiveOperations()
-    {
-        if (RuntimeFeature.IsDynamicCodeSupported && Interlocked.Decrement(ref _state) == 0)
-        {
-            _drained.Set();
-        }
+        _activeOps.Signal();
     }
 }
