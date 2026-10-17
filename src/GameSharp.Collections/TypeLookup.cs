@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using GameSharp.Collections.Generic;
+using System.Collections;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -205,6 +206,30 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
         return TypeInfo.TryGet(type, out TypeInfo? typeInfo) && Remove(item, typeInfo);
     }
 
+    /// <summary>
+    /// Gets a <see cref="TypeLookupQueryFactory"/> for the specified type.
+    /// </summary>
+    /// <param name="type">The type for which to create the factory.</param>
+    /// <returns>A <see cref="TypeLookupQueryFactory"/> that performs type-based lookups for the specified type.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="type"/> is <see langword="null"/>.</exception>
+    public static TypeLookupQueryFactory GetQueryFactory([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        TypeInfo typeInfo = TypeInfo.Get(type);
+        return new TypeLookupQueryFactory(typeInfo);
+    }
+
+    /// <summary>
+    /// Gets a <see cref="TypeLookupQueryFactory{T}"/> for the specified type.
+    /// </summary>
+    /// <typeparam name="T">The type for which to create the factory.</typeparam>
+    /// <returns>A <see cref="TypeLookupQueryFactory{T}"/> that performs type-based lookups for the specified type.</returns>
+    public static TypeLookupQueryFactory<T> GetQueryFactory<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>() where T : class
+    {
+        TypeInfo typeInfo = TypeInfo.Get<T>();
+        return new TypeLookupQueryFactory<T>(typeInfo);
+    }
+
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
     public new Enumerator GetEnumerator()
     {
@@ -224,7 +249,7 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
         scoped ref TLookupBuilder lookupBuilder,
         scoped ref TItemBuilder itemBuilder,
         object item,
-        TypeInfo typeInfo)
+TypeInfo typeInfo)
         where TLookupBuilder : struct, IArrayBuilder<IntegerLookup>, allows ref struct
         where TItemBuilder : struct, IArrayBuilder<object>, allows ref struct
     {
@@ -283,8 +308,8 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
     internal static void Remove<TLookupBuilder, TItemBuilder>(
         scoped ref TLookupBuilder lookupBuilder, 
         scoped ref TItemBuilder itemBuilder, 
-        object item, 
-        TypeInfo typeInfo)
+        object item,
+TypeInfo typeInfo)
         where TLookupBuilder : struct, IArrayBuilder<IntegerLookup>, allows ref struct
         where TItemBuilder : struct, IArrayBuilder<object>, allows ref struct
     {
