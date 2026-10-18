@@ -62,14 +62,17 @@ internal sealed class NonCollectibleTypeRegistry(short id) : TypeRegistry(id)
         }
     }
 
-    public override PurgeContext GetPurgeContext()
+    public override void Purge(short assemblyID)
     {
-        _syncRoot.EnterReadLock();
-        return base.GetPurgeContext();
-    }
+        _syncRoot.EnterWriteLock();
 
-    protected override void CompletePurge()
-    {
-        _syncRoot.ExitReadLock();
+        try
+        {
+            base.Purge(assemblyID);
+        }
+        finally
+        {
+            _syncRoot.ExitWriteLock();
+        }
     }
 }

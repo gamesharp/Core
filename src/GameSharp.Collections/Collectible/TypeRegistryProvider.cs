@@ -1,15 +1,19 @@
-﻿using System.Buffers;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 
 namespace GameSharp.Collections.Collectible;
 
 internal class TypeRegistryProvider : Collections.TypeRegistryProvider
 {
+    private sealed class PurgeContext(List<CollectibleTypeRegistry> removed)
+    {
+        public TypeRegistry? Retained { get; set; }
+        public void Purge(int removedIndex) => Retained!.Purge(removed[removedIndex].AssemblyID);
+    }
+
     private volatile ImmutableDictionary<Assembly, TypeRegistry> _registriesByAssembly;
     private volatile TypeRegistry?[] _registriesByID;
     private ImmutableHashSet<AssemblyLoadContext> _loadContexts;
@@ -82,44 +86,40 @@ internal class TypeRegistryProvider : Collections.TypeRegistryProvider
     private void OnUnloading(AssemblyLoadContext context)
     {
         if (!TryRemoveLoadContext(context)
-            || !RemoveAssemblies(context.Assemblies, out ReadOnlySpan<TypeRegistry?> remaining, out ReadOnlySpan<CollectibleTypeRegistry> removed))
+            || !RemoveAssemblies(context.Assemblies, out ReadOnlySpan<TypeRegistry?> remaining, out List<CollectibleTypeRegistry> removed))
         {
             return;
         }
 
-        int taskCount = remaining.Length + removed.Length;
-        Task[] taskArray = ArrayPool<Task>.Shared.Rent(taskCount);
         try
         {
-            ref Task task = ref MemoryMarshal.GetArrayDataReference(taskArray);
-
             foreach (CollectibleTypeRegistry registry in removed)
             {
-                task = Task.Run(registry.Dispose);
-                task = ref Unsafe.Add(ref task, 1);
+                registry.Close();
             }
 
+            PurgeContext ctx = new(removed);
             foreach (TypeRegistry? registry in remaining)
             {
                 if (registry is null)
                 {
-                    taskCount--;
                     continue;
                 }
 
-                task = PurgeRegistriesAsync(removed, registry);
-                task = ref Unsafe.Add(ref task, 1);
+                ctx.Retained = registry;
+                Parallel.For(0, removed.Count, ctx.Purge);
             }
-
-            Task.WaitAll(taskArray.AsSpan(0, taskCount));
         }
         finally
         {
-            ArrayPool<Task>.Shared.Return(taskArray, clearArray: true);
+            foreach (CollectibleTypeRegistry registry in removed)
+            {
+                registry.Dispose();
+            }
 
             lock (_syncRoot)
             {
-                _availableAssemblyIDs.EnsureCapacity(_availableAssemblyIDs.Count + removed.Length);
+                _availableAssemblyIDs.EnsureCapacity(_availableAssemblyIDs.Count + removed.Count);
                 foreach (TypeRegistry registry in removed)
                 {
                     _availableAssemblyIDs.Enqueue(registry.AssemblyID);
@@ -128,30 +128,9 @@ internal class TypeRegistryProvider : Collections.TypeRegistryProvider
         }
     }
 
-    private static Task PurgeRegistriesAsync(ReadOnlySpan<TypeRegistry> removed, TypeRegistry retainedRegistry)
+    private bool RemoveAssemblies(IEnumerable<Assembly> assemblies, out ReadOnlySpan<TypeRegistry?> remaining, out List<CollectibleTypeRegistry> removed)
     {
-        using TypeRegistry.PurgeContext purgeContext = retainedRegistry.GetPurgeContext();
-        int taskCount = purgeContext.Count * removed.Length;
-        Task[] taskArray = ArrayPool<Task>.Shared.Rent(taskCount);
-        ref Task task = ref MemoryMarshal.GetArrayDataReference(taskArray);
-        foreach (TypeRegistry removedRegistry in removed)
-        {
-            purgeContext.Purge(ref task, removedRegistry.AssemblyID);
-        }
-        return WaitThenReturnAsync(taskArray, taskCount);
-    }
-
-    private static async Task WaitThenReturnAsync(Task[] tasks, int count)
-    {
-        Task wait = Task.WhenAll(tasks.AsSpan(0, count));
-        await wait.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        ArrayPool<Task>.Shared.Return(tasks, clearArray: true);
-        wait.GetAwaiter().GetResult();
-    }
-
-    private bool RemoveAssemblies(IEnumerable<Assembly> assemblies, out ReadOnlySpan<TypeRegistry?> remaining, out ReadOnlySpan<CollectibleTypeRegistry> removed)
-    {
-        List<CollectibleTypeRegistry> registryList = [];
+        removed = [];
 
         lock (_syncRoot)
         {
@@ -163,13 +142,12 @@ internal class TypeRegistryProvider : Collections.TypeRegistryProvider
                 if (byAssemblyBuilder.Remove(assembly, out TypeRegistry? registry))
                 {
                     byID[registry.AssemblyID] = null;
-                    registryList.Add((CollectibleTypeRegistry)registry);
+                    removed.Add((CollectibleTypeRegistry)registry);
                 }
             }
 
-            if (registryList.Count == 0)
+            if (removed.Count == 0)
             {
-                removed = default;
                 remaining = _registriesByID.AsSpan();
                 return false;
             }
@@ -179,7 +157,6 @@ internal class TypeRegistryProvider : Collections.TypeRegistryProvider
             remaining = _registriesByID.AsSpan();
         }
 
-        removed = CollectionsMarshal.AsSpan(registryList);
         return true;
     }
 

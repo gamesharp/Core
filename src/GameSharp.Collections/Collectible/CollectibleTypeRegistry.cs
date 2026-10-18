@@ -4,98 +4,39 @@ namespace GameSharp.Collections.Collectible;
 
 internal sealed class CollectibleTypeRegistry(short id) : TypeRegistry(id), IDisposable
 {
-    private readonly ReaderWriterLockSlim _syncRoot = new(LockRecursionPolicy.NoRecursion);
-    private readonly CountdownEvent _activeOps = new(initialCount: 0);
-    private bool _disposed;
+    private readonly CountingReaderWriterLock _syncRoot = new();
 
     public override TypeInfo Get(int id)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
-        _activeOps.AddCount();
-        _syncRoot.EnterReadLock();
-
-        try
-        {
-            return base.Get(id);
-        }
-        finally
-        {
-            _syncRoot.ExitReadLock();
-            _activeOps.Signal();
-        }
+        using ReadLockHandle handle = _syncRoot.EnterReadLock();
+        return base.Get(id);
     }
 
     public override bool GetOrAdd(Type type, [NotNull] out TypeInfo? typeInfo)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
-        _activeOps.AddCount();
-        _syncRoot.EnterUpgradeableReadLock();
-
-        try
+        using UpgradableReadLockHandle readHandle = _syncRoot.EnterUpgradeableReadLock();
+        if (Registrations.TryGetValue(type, out typeInfo))
         {
-            if (Registrations.TryGetValue(type, out typeInfo))
-            {
-                return true;
-            }
-
-            _syncRoot.EnterWriteLock();
-
-            try
-            {
-                return base.GetOrAdd(type, out typeInfo);
-            }
-            finally
-            {
-                _syncRoot.ExitWriteLock();
-            }
+            return true;
         }
-        finally
-        {
-            _syncRoot.ExitUpgradeableReadLock();
-            _activeOps.Signal();
-        }
+
+        using UpgradedReadLockHandle writeHandle = readHandle.Upgrade();
+        return base.GetOrAdd(type, out typeInfo);
     }
 
     public override bool TryGet(Type type, [MaybeNullWhen(false)] out TypeInfo typeInfo)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
-        _activeOps.AddCount();
-        _syncRoot.EnterReadLock();
-
-        try
-        {
-            return base.TryGet(type, out typeInfo);
-        }
-        finally
-        {
-            _syncRoot.ExitReadLock();
-            _activeOps.Signal();
-        }
+        using ReadLockHandle handle = _syncRoot.EnterReadLock();
+        return base.TryGet(type, out typeInfo);
     }
 
-    public void Dispose()
+    public override void Purge(short assemblyID)
     {
-        if (Interlocked.Exchange(ref _disposed, true))
-        {
-            return;
-        }
-
-        _activeOps.Wait();
-        _activeOps.Dispose();
-        _syncRoot.Dispose();
+        using WriteLockHandle handle = _syncRoot.EnterWriteLock();
+        base.Purge(assemblyID);
     }
 
-    public override PurgeContext GetPurgeContext()
-    {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
-        _activeOps.AddCount();
-        _syncRoot.EnterReadLock();
-        return base.GetPurgeContext();
-    }
+    public void Close() => _syncRoot.Close();
 
-    protected override void CompletePurge()
-    {
-        _syncRoot.ExitReadLock();
-        _activeOps.Signal();
-    }
+    public void Dispose() => _syncRoot.Dispose();
 }
