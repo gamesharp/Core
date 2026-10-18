@@ -9,29 +9,45 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="TaskCompletionSourceExtensions.cs" />
-  </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)' != 'Release' And !$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">
+    <DefineConstants>PRESERVE_STACK_TRACE</DefineConstants>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <IsAotCompatible>true</IsAotCompatible>
+    <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
+  </PropertyGroup>
 
   <ItemGroup>
+    <Using Alias="Flag" Include="System.Int32" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <Using Alias="Flag" Include="System.Boolean" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net5.0'))">
+    <Compile Remove="TaskCompletionSourceExtensions.cs" />
+    <None Include="TaskCompletionSourceExtensions.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
     <PackageReference Include="PolySharp" Version="1.15.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net481'">
-    <PackageReference Include="System.Collections.Immutable" Version="10.*" />
+  <ItemGroup Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'netcoreapp3.0'))">
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.*" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'netcoreapp2.1'))">
     <PackageReference Include="System.Memory" Version="4.6.*" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.*" />
-    <Compile Include="TaskCompletionSourceExtensions.cs" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+  <ItemGroup Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'netcoreapp1.0'))">
     <PackageReference Include="System.Collections.Immutable" Version="10.*" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.*" />
-    <Compile Include="TaskCompletionSourceExtensions.cs" />
   </ItemGroup>
 
 </Project>
