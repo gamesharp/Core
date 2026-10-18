@@ -85,8 +85,7 @@ public ref struct PooledList<T>
     {
         ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
         PooledMemoryOwner<T> owner = new(array, count);
-        array = null;
-        data = ref Unsafe.NullRef<T?>();
+        DisposeUnsafe();
         return owner;
     }
 
@@ -301,7 +300,6 @@ public ref struct PooledList<T>
         if (array is { })
         {
             PooledArrayFactory.Return<T>(ref array);
-            data = ref Unsafe.NullRef<T?>();
         }
 
         array = null;
@@ -343,6 +341,14 @@ public ref struct PooledList<T>
         return AsSpan().GetEnumerator();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void DisposeUnsafe()
+    {
+        array = null;
+        data = ref Unsafe.NullRef<T>();
+        count = 0;
+    }
+
     [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
     private readonly void ThrowIfIndexOutOfRange(int index, [CallerArgumentExpression(nameof(index))] string? paramName = null)
     {
@@ -376,6 +382,18 @@ public ref struct PooledList<T>
 /// </summary>
 public static class PooledList
 {
+    /// <inheritdoc cref="CollectorDelegate{TState}"/>
+    public delegate void CollectorDelegate(ref PooledList<Task> list, CancellationToken cancellationToken);
+    /// <summary>
+    /// Collects Task instances into a pooled list.
+    /// </summary>
+    /// <typeparam name="TState">The type used to provide state.</typeparam>
+    /// <param name="list">The pooled list of <see cref="Task"/> instances to add to.</param>
+    /// <param name="state">A readonly reference to the state value.</param>
+    /// <param name="cancellationToken">Cancellation token to observe.</param>
+    public delegate void CollectorDelegate<TState>(ref PooledList<Task> list, in TState state, CancellationToken cancellationToken)
+        where TState : allows ref struct;
+
     private const int DefaultInitialCapacity = 16;
 
     /// <summary>
@@ -502,6 +520,91 @@ public static class PooledList
         return CreateFromEnumerableWithoutCount(source);
     }
 
+    /// <inheritdoc cref="WhenAll{TState}(CollectorDelegate{TState}, in TState, int, CancellationToken)"/>
+    public static Task WhenAll(CollectorDelegate collector, int initialCapacity, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(collector);
+        PooledList<Task> tasks = Empty<Task>(initialCapacity);
+        try
+        {
+            collector(ref tasks, cancellationToken);
+            return WhenAll(ref tasks);
+        }
+        catch (Exception ex)
+        {
+            return WhenAll(Task.FromException(ex), WhenAll(ref tasks));
+        }
+    }
+
+    /// <inheritdoc cref="WhenAll{TState}(CollectorDelegate{TState}, in TState, int, CancellationToken)"/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Task WhenAll(CollectorDelegate collector, CancellationToken cancellationToken = default)
+    {
+        return WhenAll(collector, DefaultInitialCapacity, cancellationToken);
+    }
+
+    /// <summary>
+    /// Invokes the collector to populate a pooled list of tasks.
+    /// </summary>
+    /// <typeparam name="TState">The type of state to pass to the <paramref name="collector"/>.</typeparam>
+    /// <param name="collector">The method used to populate the pooled list of tasks.</param>
+    /// <param name="state">A state parameter to pass to <paramref name="collector"/>.</param>
+    /// <param name="initialCapacity">Initial capacity for the pooled task list used to collect tasks.</param>
+    /// <param name="cancellationToken">
+    /// Cancellation token passed to the <paramref name="collector"/> for cooperative cancellation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="Task"/> that represents the combined completion of all tasks added by the 
+    /// <paramref name="collector"/>.
+    /// </returns>
+    public static Task WhenAll<TState>(CollectorDelegate<TState> collector, in TState state, 
+        int initialCapacity = DefaultInitialCapacity, 
+        CancellationToken cancellationToken = default)
+        where TState : allows ref struct
+    {
+        ArgumentNullException.ThrowIfNull(collector);
+        PooledList<Task> tasks = Empty<Task>(initialCapacity);
+        try
+        {
+            collector(ref tasks, in state, cancellationToken);
+            return WhenAll(ref tasks);
+        }
+        catch (Exception ex)
+        {
+            return WhenAll(Task.FromException(ex), WhenAll(ref tasks));
+        }
+    }
+
+    /// <inheritdoc cref="WhenAll{TState}(CollectorDelegate{TState}, in TState, int, CancellationToken)"/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Task WhenAll<TState>(CollectorDelegate<TState> collector, in TState state, CancellationToken cancellationToken = default)
+        where TState : allows ref struct
+    {
+        return WhenAll(collector, in state, DefaultInitialCapacity, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="Task"/> that completes when both specified tasks have completed.
+    /// </summary>
+    /// <param name="task1">The first <see cref="Task"/> to wait for.</param>
+    /// <param name="task2">The second <see cref="Task"/> to wait for.</param>
+    /// <returns>A <see cref="Task"/> that completes when both specified tasks have completed.</returns>
+    public static Task WhenAll(Task task1, Task task2)
+    {
+        PooledList<Task> tasks = SkipInit<Task>(2);
+        try
+        {
+            tasks[0] = task1;
+            tasks[1] = task2;
+            return WhenAll(ref tasks);
+        }
+        catch
+        {
+            tasks.Dispose();
+            throw;
+        }
+    }
+
     private static PooledList<T> CreateFromEnumerableWithCount<T>(IEnumerable<T> source, int count)
     {
         int capacity = ComputeInitialCapacity(count);
@@ -549,5 +652,27 @@ public static class PooledList
     private static int ComputeInitialCapacity(int count)
     {
         return Math.Max(count + (count >> 1), DefaultInitialCapacity);
+    }
+
+    internal static Task WhenAll(ref PooledList<Task> tasks)
+    {
+        if (tasks.array is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        Task wait = Task.WhenAll(tasks);
+        Task continuation = wait.ContinueWith(
+            Unsafe.As<Action<Task, object?>>((Action<Task, object[]>)ReturnArrayAndPropagateException),
+            tasks.array,
+            TaskContinuationOptions.ExecuteSynchronously);
+        tasks.DisposeUnsafe();
+        return continuation;
+    }
+
+    private static void ReturnArrayAndPropagateException(Task completedTask, object[] array)
+    {
+        ArrayPool<object>.Shared.Return(array, clearArray: true);
+        completedTask.GetAwaiter().GetResult();
     }
 }
