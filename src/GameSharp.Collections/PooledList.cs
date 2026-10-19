@@ -612,11 +612,11 @@ public static class PooledList
 
         try
         {
-            ref T? data = ref result.data;
+            ref T data = ref result.data;
             foreach (T item in source)
             {
                 data = item;
-                data = ref Unsafe.Add<T?>(ref data, 1);
+                data = ref Unsafe.Add(ref data, 1);
             }
         }
         catch
