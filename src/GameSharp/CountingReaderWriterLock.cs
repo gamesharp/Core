@@ -31,37 +31,24 @@ public sealed class CountingReaderWriterLock : IDisposable
         _activeOperations = new(initialCount: 1);
     }
 
-    /// <summary>
-    /// Tries to enter the lock in read mode.
-    /// </summary>
-    /// <param name="handle">
-    /// When this method returns <see langword="true"/>, contains a <see cref="ReadLockHandle"/> that releases the read lock 
-    /// when disposed; otherwise, contains the default value.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> if the read lock was acquired and handle contains a valid <see cref="ReadLockHandle"/>; 
-    /// otherwise, <see langword="false"/>.
-    /// </returns>
-    /// <inheritdoc cref="CountdownEvent.TryAddCount()"/>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool EnterReadLock(out ReadLockHandle handle)
-    {
-        if (FlagInterlocked.Read(ref _isClosing) || !_activeOperations.TryAddCount())
-        {
-            handle = default;
-            return false;
-        }
-
-        handle = EnterReadLockImpl();
-        return true;
-    }
-
     /// <returns>A handle that releases the read lock when disposed.</returns>
     /// <inheritdoc cref="ReaderWriterLockSlim.EnterReadLock"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ReadLockHandle TryEnterReadLock()
+    {
+        if (TryIncrementActiveOperations())
+        {
+            return EnterReadLockImpl();
+        }
+
+        _activeOperations.Wait();
+        return default;
+    }
+
+    /// <inheritdoc cref="TryEnterReadLock"/>
     public ReadLockHandle EnterReadLock()
     {
-        if (!EnterReadLock(out ReadLockHandle handle))
+        if (!TryIncrementActiveOperations())
         {
 #if PRESERVE_STACK_TRACE
             throw ThrowHelpers.LockClosingOrClosedException();
@@ -70,7 +57,7 @@ public sealed class CountingReaderWriterLock : IDisposable
 #endif
         }
 
-        return handle;
+        return EnterReadLockImpl();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -91,35 +78,23 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <summary>
     /// Tries to enter the lock in write mode.
     /// </summary>
-    /// <param name="handle">
-    /// When this method returns <see langword="true"/>, contains a <see cref="WriteLockHandle"/> that releases the write lock 
-    /// when disposed; otherwise, contains the default value.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> if the write lock was acquired and handle contains a valid <see cref="WriteLockHandle"/>; 
-    /// otherwise, <see langword="false"/>.
-    /// </returns>
-    /// <inheritdoc cref="CountdownEvent.TryAddCount()"/>
-    public bool EnterWriteLock(out WriteLockHandle handle)
-    {
-        if (FlagInterlocked.Read(ref _isClosing) || !_activeOperations.TryAddCount())
-        {
-            handle = default;
-            return false;
-        }
-
-        handle = EnterWriteLockImpl();
-        return true;
-    }
-
-    /// <summary>
-    /// Tries to enter the lock in write mode.
-    /// </summary>
     /// <returns>A handle that releases the write lock when disposed.</returns>
     /// <inheritdoc cref="CountdownEvent.AddCount()"/>
+    public WriteLockHandle TryEnterWriteLock()
+    {
+        if (TryIncrementActiveOperations())
+        {
+            return EnterWriteLockImpl();
+        }
+        
+        _activeOperations.Wait();
+        return default;
+    }
+
+    /// <inheritdoc cref="TryEnterWriteLock"/>
     public WriteLockHandle EnterWriteLock()
     {
-        if (!EnterWriteLock(out WriteLockHandle handle))
+        if (!TryIncrementActiveOperations())
         {
 #if PRESERVE_STACK_TRACE
             throw ThrowHelpers.LockClosingOrClosedException();
@@ -128,7 +103,7 @@ public sealed class CountingReaderWriterLock : IDisposable
 #endif
         }
 
-        return handle;
+        return EnterWriteLockImpl();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -149,36 +124,24 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <summary>
     /// Tries to enter the lock in upgradeable mode.
     /// </summary>
-    /// <param name="handle">
-    /// When this method returns <see langword="true"/>, contains a <see cref="UpgradableReadLockHandle"/> that releases the upgradeable read lock 
-    /// when disposed; otherwise, contains the default value.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> if the upgradeable read lock was acquired and handle contains a valid <see cref="UpgradableReadLockHandle"/>; 
-    /// otherwise, <see langword="false"/>.
-    /// </returns>
-    /// <inheritdoc cref="CountdownEvent.TryAddCount()"/>
-    public bool EnterUpgradeableReadLock(out UpgradableReadLockHandle handle)
-    {
-        if (FlagInterlocked.Read(ref _isClosing) || !_activeOperations.TryAddCount())
-        {
-            handle = default;
-            return false;
-        }
-
-        handle = EnterUpgradableReadLockImpl();
-        return true;
-    }
-
-    /// <summary>
-    /// Tries to enter the lock in upgradeable mode.
-    /// </summary>
     /// <returns>A handle that releases the upgradeable read lock when disposed.</returns>
     /// <inheritdoc cref="CountdownEvent.TryAddCount()"/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public UpgradableReadLockHandle TryEnterUpgradeableReadLock()
+    {
+        if (TryIncrementActiveOperations())
+        {
+            return EnterUpgradableReadLockImpl();
+        }
+
+        _activeOperations.Wait();
+        return default;
+    }
+
+    /// <inheritdoc cref="TryEnterUpgradeableReadLock"/>
     public UpgradableReadLockHandle EnterUpgradeableReadLock()
     {
-        if (!EnterUpgradeableReadLock(out UpgradableReadLockHandle handle))
+        if (!TryIncrementActiveOperations())
         {
 #if PRESERVE_STACK_TRACE
             throw ThrowHelpers.LockClosingOrClosedException();
@@ -187,7 +150,7 @@ public sealed class CountingReaderWriterLock : IDisposable
 #endif
         }
 
-        return handle;
+        return EnterUpgradableReadLockImpl();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -269,4 +232,7 @@ public sealed class CountingReaderWriterLock : IDisposable
             activeOps.Signal();
         }
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryIncrementActiveOperations() => !FlagInterlocked.Read(ref _isClosing) && _activeOperations.TryAddCount();
 }
