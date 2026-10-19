@@ -1,6 +1,5 @@
 ﻿using GameSharp.Collections.Generic;
 using System.Collections;
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -9,11 +8,11 @@ using System.Runtime.InteropServices;
 namespace GameSharp.Collections;
 
 /// <summary>
-/// Represents a collection of objects, providing efficient lookup and retrieval by object type.
+/// Represents a mutable type lookup.
 /// </summary>
-public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, object>>
+public class TypeLookup : MutableTypeLookup, ITypeLookup
 {
-    private protected readonly ref struct ArrayBuilder<T>(ref T[] array, ref int logicalCount, ref int version) : IArrayBuilder<T>
+    private protected readonly ref struct ArrayBuilder<T>(ref T[] array, ref int logicalCount, ref int version, ArrayFactory arrayFactory) : IArrayBuilder<T>
     {
         private readonly ref int _version = ref version;
 
@@ -30,66 +29,194 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Mutate()
         {
-            if (_logicalCount > _array.Length)
-            {
-                GrowArray();
-            }
-
+            arrayFactory.EnsureCapacity(ref _array, _logicalCount);
             _version++;
         }
+    }
 
-        private void GrowArray()
+    /// <summary>
+    /// Represents a collection of clusters, where each cluster contains contiguous items of the same type.
+    /// </summary>
+    public readonly struct ClusterCollection
+    {
+        /// <inheritdoc cref="IEnumerator{T}"/>
+        public ref struct Enumerator : IStackOnlyEnumerator<TypeLookupCluster>
         {
-            int capacity = _array.Length == 0 ? 16 : _array.Length;
+            private TypeLookupClusterEnumeratorCore _core;
+            private readonly MutationMonitor _monitor;
 
-            while (capacity < _logicalCount)
+            /// <inheritdoc cref="IEnumerator.Current"/>
+            public readonly TypeLookupCluster Current => _core.Current;
+
+            internal Enumerator(TypeLookup lookup)
             {
-                capacity += capacity >> 1;
+                _monitor = new MutationMonitor(lookup);
+                ReadOnlySpan<IntegerLookup> lookups = lookup.lookups.AsSpan(0, lookup.lookupCount);
+                ReadOnlySpan<object> items = lookup.items.AsSpan(0, lookup.itemCount);
+                _core = new TypeLookupClusterEnumeratorCore(lookups, items);
             }
 
-            System.Array.Resize(ref _array, capacity);
+            /// <inheritdoc cref="IEnumerator.MoveNext"/>
+            public bool MoveNext()
+            {
+                _monitor.ThrowIfCollectionWasModified();
+                return _core.MoveNext();
+            }
         }
+
+        private readonly TypeLookup _lookup;
+
+        /// <inheritdoc cref="IReadOnlyCollection{T}.Count"/>
+        public int Count => _lookup.lookupCount;
+
+        internal ClusterCollection(TypeLookup lookup) => _lookup = lookup;
+
+        /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
+        public Enumerator GetEnumerator() => new Enumerator(_lookup);
     }
 
-    /// <inheritdoc cref="IEnumerator{T}"/>
-    public new readonly ref struct Enumerator
+    private sealed class EnumeratorImpl(MutationMonitor monitor, ReadOnlyMemory<IntegerLookup> lookups, ReadOnlyMemory<object> items) : 
+        TypeLookupEnumerator(lookups, items)
     {
-        private readonly ReadOnlyTypeLookup.Enumerator _enumerator;
-        private readonly MutationMonitor _monitor;
-
-        /// <inheritdoc cref="IEnumerator.Current"/>
-        public readonly KeyValuePair<Type, object> Current => _enumerator.Current;
-
-        internal Enumerator(TypeLookup collection)
-        {
-            _monitor = new MutationMonitor(collection);
-            _enumerator = new ReadOnlyTypeLookup.Enumerator(collection.Lookups.Span, collection.Items.Span);
-        }
-
-        /// <inheritdoc cref="IEnumerator.MoveNext"/>
-        public bool MoveNext()
-        {
-            _monitor.ThrowIfCollectionWasModified();
-            return _enumerator.MoveNext();
-        }
-    }
-
-    private new sealed class EnumeratorImpl(TypeLookup collection) : ReadOnlyTypeLookup.EnumeratorImpl(collection.Lookups, collection.Items)
-    {
-        private readonly MutationMonitor _monitor = new(collection);
-
         public override bool MoveNext()
         {
-            _monitor.ThrowIfCollectionWasModified();
+            monitor.ThrowIfCollectionWasModified();
             return base.MoveNext();
         }
     }
 
-    private protected readonly struct MutationMonitor(TypeLookup collection)
+    /// <inheritdoc cref="IEnumerator{T}"/>
+    public ref struct Enumerator
+    {
+        private TypeLookupEnumeratorCore<ClusterCollection.Enumerator> _core;
+
+        /// <inheritdoc cref="IEnumerator.Current"/>
+        public readonly KeyValuePair<Type, object> Current => _core.Current;
+
+        internal Enumerator(TypeLookup lookup)
+        {
+            ClusterCollection.Enumerator clusterEnum = new(lookup);
+            _core = new TypeLookupEnumeratorCore<ClusterCollection.Enumerator>(clusterEnum);
+        }
+
+        /// <inheritdoc cref="IEnumerator.MoveNext"/>
+        public bool MoveNext() => _core.MoveNext();
+    }
+
+    /// <inheritdoc cref="Query{T}"/>
+    public readonly struct Query : IEnumerable<object>
+    {
+        /// <inheritdoc cref="IEnumerator{T}"/>
+        public ref struct Enumerator
+        {
+            private TypeLookupQueryEnumeratorCore _core;
+            private readonly MutationMonitor _monitor;
+
+            /// <inheritdoc cref="IEnumerator.Current"/>
+            public readonly object Current => _core.Current;
+
+            internal Enumerator(TypeInfo typeInfo, TypeLookup lookup)
+            {
+                _monitor = new MutationMonitor(lookup);
+                ReadOnlySpan<IntegerLookup> lookups = lookup.lookups.AsSpan(0, lookup.lookupCount);
+                ReadOnlySpan<object> items = lookup.items.AsSpan(0, lookup.itemCount);
+                _core = new TypeLookupQueryEnumeratorCore(typeInfo, lookups, items);
+            }
+
+            /// <inheritdoc cref="IEnumerator.MoveNext"/>
+            public bool MoveNext()
+            {
+                _monitor.ThrowIfCollectionWasModified();
+                return _core.MoveNext();
+            }
+        }
+
+        private readonly TypeLookup _lookup;
+        private readonly TypeInfo _typeInfo;
+
+        internal Query(TypeLookup lookup, TypeInfo typeInfo)
+        {
+            _lookup = lookup;
+            _typeInfo = typeInfo;
+        }
+
+        /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
+        public Enumerator GetEnumerator() => new(_typeInfo, _lookup);
+
+        IEnumerator<object> IEnumerable<object>.GetEnumerator()
+        {
+            return ((IEnumerable<object>)[.. this]).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable<object>)[.. this]).GetEnumerator();
+        }
+    }
+
+    /// <summary>
+    /// Represents a filtered query over a collection of objects.
+    /// </summary>
+    /// <typeparam name="T">The type of objects to filter by.</typeparam>
+    public readonly struct Query<T> : IEnumerable<T> where T : class
+    {
+        /// <inheritdoc cref="IEnumerator{T}"/>
+        public ref struct Enumerator
+        {
+            private TypeLookupQueryEnumeratorCore _core;
+            private readonly MutationMonitor _monitor;
+
+            /// <inheritdoc cref="IEnumerator{T}.Current"/>
+            public readonly T Current => Unsafe.As<T>(_core.Current);
+
+            internal Enumerator(TypeInfo typeInfo, TypeLookup lookup)
+            {
+                _monitor = new MutationMonitor(lookup);
+                ReadOnlySpan<IntegerLookup> lookups = lookup.lookups.AsSpan(0, lookup.lookupCount);
+                ReadOnlySpan<object> items = lookup.items.AsSpan(0, lookup.itemCount);
+                _core = new TypeLookupQueryEnumeratorCore(typeInfo, lookups, items);
+            }
+
+            /// <inheritdoc cref="IEnumerator.MoveNext"/>
+            public bool MoveNext()
+            {
+                _monitor.ThrowIfCollectionWasModified();
+                return _core.MoveNext();
+            }
+        }
+
+        private readonly TypeLookup _lookup;
+        private readonly TypeInfo _typeInfo;
+
+        internal Query(TypeLookup lookup, TypeInfo typeInfo)
+        {
+            _lookup = lookup;
+            _typeInfo = typeInfo;
+        }
+
+        /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
+        public Enumerator GetEnumerator() => new(_typeInfo, _lookup);
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return ((IEnumerable<T>)[.. this]).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable<T>)[.. this]).GetEnumerator();
+        }
+    }
+
+    private readonly struct MutationMonitor(TypeLookup collection)
     {
         private readonly int _version = collection._version;
 
-        public bool WasModified => collection._version != _version;
+        public bool WasModified
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => collection._version != _version;
+        }
 
         [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ThrowIfCollectionWasModified()
@@ -98,12 +225,6 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
             {
                 CollectionWasModified();
             }
-        }
-
-        [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CollectionWasModified()
-        {
-            throw new InvalidOperationException();
         }
     }
 
@@ -115,10 +236,8 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
     private protected object[] items;
     private protected int itemCount;
 
-    bool ICollection<KeyValuePair<Type, object>>.IsReadOnly => false;
-
-    internal override ReadOnlyMemory<IntegerLookup> Lookups => new(lookups, 0, lookupCount);
-    internal override ReadOnlyMemory<object> Items => new(items, 0, itemCount);
+    /// <inheritdoc/>
+    public override int Count => itemCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TypeLookup"/> class.
@@ -137,7 +256,46 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
         this.itemCount = itemCount;
     }
 
-    /// <inheritdoc cref="ICollection{T}.Clear"/>
+    private protected override bool Replace(object existingItem, object newItem, TypeInfo typeInfo)
+    {
+        ArrayBuilder<object> itemBuilder = new(ref items, ref itemCount, ref _version, CollectableArrayFactory.Default);
+        MutationMonitor monitor = new(this);
+        Replace(lookups.AsSpan(0, lookupCount), ref itemBuilder, existingItem, newItem, typeInfo);
+        return monitor.WasModified;
+    }
+
+    private protected override bool Contains(object item, TypeInfo typeInfo)
+    {
+        foreach (object obj in new Query(this, typeInfo))
+        {
+            if (ReferenceEquals(obj, item))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private protected override bool TryGetOne<T>(TypeInfo typeInfo, [MaybeNullWhen(false)] out T item) where T : class
+    {
+        return TryGetOne(lookups.AsSpan(0, lookupCount), items.AsSpan(0, itemCount), typeInfo, out item);
+    }
+
+    /// <inheritdoc cref="IReadOnlyTypeLookup.GetAll(Type)"/>
+    public Query GetAll([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
+    {
+        return new Query(this, TypeInfo.Get(type));
+    }
+
+    /// <inheritdoc cref="IReadOnlyTypeLookup.GetAll{T}"/>
+    public Query<T> GetAll<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>() where T : class
+    {
+        return new Query<T>(this, TypeInfo.Get<T>());
+    }
+
+    /// <inheritdoc/>
     public void Clear()
     {
         lookupCount = 0;
@@ -146,64 +304,6 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
         itemCount = 0;
 
         _version++;
-    }
-
-    /// <typeparam name="T"> The type of the item to add. Must be a reference type.</typeparam>
-    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="item"/> is <see langword="null"/>.</exception>
-    /// <inheritdoc cref="Add(object, Type)"/>
-    public bool Add<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>(T item) where T : class
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        TypeInfo typeInfo = TypeInfo.Get<T>();
-        return Add(item, typeInfo);
-    }
-
-    /// <summary>
-    /// Adds the specified item to the collection.
-    /// </summary>
-    /// <param name="type">The type of the item to add.</param>
-    /// <param name="item">The item to add to the collection. Cannot be <see langword="null"/>.</param>
-    /// <returns>
-    /// <see langword="true"/> if the item was successfully added; <see langword="false"/> if the item is
-    /// already present.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown if either the <paramref name="item"/> or the <paramref name="type"/> is <see langword="null"/>.
-    /// </exception>
-    public bool Add(object item, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        ArgumentNullException.ThrowIfNull(type);
-        TypeInfo typeInfo = TypeInfo.Get(type);
-        return Add(item, typeInfo);
-    }
-
-    /// <typeparam name="T">The type of the item to remove. Must be a reference type.</typeparam>
-    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="item"/> is <see langword="null"/>.</exception>
-    /// <inheritdoc cref="Remove(object, Type)"/>
-    public bool Remove<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>(T item) where T : class
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        TypeInfo typeInfo = TypeInfo.Get<T>();
-        return Remove(item, typeInfo);
-    }
-
-    /// <summary>
-    /// Removes all occurrences of the specified item from the collection.
-    /// </summary>
-    /// <param name="type">The type of the item to remove.</param>
-    /// <param name="item">The item to remove from the collection.</param>
-    /// <returns>
-    /// <see langword="true"/> if item was found and removed from the collection; otherwise, <see langword="false"/>.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown if either the <paramref name="item"/> or the <paramref name="type"/> is <see langword="null"/>.
-    /// </exception> 
-    public bool Remove(object item, Type type)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        ArgumentNullException.ThrowIfNull(type);
-        return TypeInfo.TryGet(type, out TypeInfo? typeInfo) && Remove(item, typeInfo);
     }
 
     /// <summary>
@@ -231,13 +331,13 @@ public class TypeLookup : ReadOnlyTypeLookup, ICollection<KeyValuePair<Type, obj
     }
 
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-    public new Enumerator GetEnumerator()
+    public Enumerator GetEnumerator()
     {
         return new Enumerator(this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private protected virtual bool Add(object item, TypeInfo typeInfo)
+    private protected override bool Add(object item, TypeInfo typeInfo)
     {
         GetBuilders(out ArrayBuilder<IntegerLookup> lookupBuilder, out ArrayBuilder<object> itemBuilder);
         MutationMonitor monitor = new(this);
@@ -257,7 +357,7 @@ TypeInfo typeInfo)
 
         Span<IntegerLookup> lookups = lookupBuilder.Array.AsSpan(..lookupBuilder.LogicalCount);
         Span<object> items = itemBuilder.Array.AsSpan(0, itemBuilder.LogicalCount);
-        if (TryGetCluster(lookups, items, typeInfo.ID, out TypeCluster cluster))
+        if (TryGetCluster(lookups, items, typeInfo.ID, out TypeLookupClusterIndex cluster))
         {
             foreach (object clusterItem in cluster.Items)
             {
@@ -297,7 +397,7 @@ TypeInfo typeInfo)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private protected virtual bool Remove(object item, TypeInfo typeInfo)
+    private protected override bool Remove(object item, TypeInfo typeInfo)
     {
         GetBuilders(out ArrayBuilder<IntegerLookup> lookupBuilder, out ArrayBuilder<object> itemBuilder);
         MutationMonitor monitor = new(this);
@@ -309,7 +409,7 @@ TypeInfo typeInfo)
         scoped ref TLookupBuilder lookupBuilder, 
         scoped ref TItemBuilder itemBuilder, 
         object item,
-TypeInfo typeInfo)
+        TypeInfo typeInfo)
         where TLookupBuilder : struct, IArrayBuilder<IntegerLookup>, allows ref struct
         where TItemBuilder : struct, IArrayBuilder<object>, allows ref struct
     {
@@ -325,7 +425,7 @@ TypeInfo typeInfo)
         ref int firstID = ref MemoryMarshal.GetReference(derived);
         ref int currentID = ref Unsafe.Add(ref firstID, derived.Length - 1);
 
-        TypeCluster cluster;
+        TypeLookupClusterIndex cluster;
         int li = lookupBuilder.LogicalCount;
         for (; Unsafe.IsAddressGreaterThanOrEqualTo(in currentID, in firstID); currentID = ref Unsafe.Subtract(ref currentID, 1), li = cluster.Index)
         {
@@ -372,21 +472,51 @@ TypeInfo typeInfo)
         }
     }
 
+    internal static void Replace<TItemBuilder>(
+        ReadOnlySpan<IntegerLookup> lookups,
+        scoped ref TItemBuilder itemBuilder,
+        object existingItem,
+        object newItem,
+        TypeInfo typeInfo)
+        where TItemBuilder : struct, IArrayBuilder<object>, allows ref struct
+    {
+        ReadOnlySpan<object> items = itemBuilder.Array.AsSpan(0, itemBuilder.LogicalCount);
+        TypeLookupQueryClusterEnumeratorCore enumerator = new(typeInfo, lookups, items);
+        while (enumerator.MoveNext())
+        {
+            TypeLookupClusterIndex cluster = enumerator.Current;
+            int i = cluster.Lookup.index;
+
+            foreach (object clusterItem in cluster.Items)
+            {
+                if (ReferenceEquals(clusterItem, existingItem))
+                {
+                    itemBuilder.Mutate();
+                    SetAtUnchecked(itemBuilder.Array, i, newItem);
+
+                    return;
+                }
+
+                i++;
+            }
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private protected void GetBuilders(out ArrayBuilder<IntegerLookup> lookupBuilder, out ArrayBuilder<object> itemBuilder)
     {
-        lookupBuilder = new(ref lookups, ref lookupCount, ref _version);
-        itemBuilder = new(ref items, ref itemCount, ref _version);
+        lookupBuilder = new(ref lookups, ref lookupCount, ref _version, CollectableArrayFactory.Default);
+        itemBuilder = new(ref items, ref itemCount, ref _version, CollectableArrayFactory.Default);
     }
 
-    internal static bool TryGetCluster(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items, int id, out TypeCluster cluster)
+    internal static bool TryGetCluster(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items, int id, out TypeLookupClusterIndex cluster)
     {
         IntegerLookup lookup;
 
         if (lookups.IsEmpty)
         {
             lookup = new IntegerLookup(id, 0);
-            cluster = new TypeCluster()
+            cluster = new TypeLookupClusterIndex()
             {
                 Index = 0,
                 Lookup = lookup,
@@ -404,7 +534,7 @@ TypeInfo typeInfo)
 
         if (exists)
         {
-            cluster = new TypeCluster()
+            cluster = new TypeLookupClusterIndex()
             {
                 Index = index,
                 Lookup = result,
@@ -416,7 +546,7 @@ TypeInfo typeInfo)
 
         if (Unsafe.IsAddressGreaterThan(ref result, ref last))
         {
-            cluster = new TypeCluster()
+            cluster = new TypeLookupClusterIndex()
             {
                 Index = lookups.Length,
                 Lookup = new IntegerLookup(id, items.Length),
@@ -426,7 +556,7 @@ TypeInfo typeInfo)
             return false;
         }
 
-        cluster = new TypeCluster()
+        cluster = new TypeLookupClusterIndex()
         {
             Index = index,
             Lookup = new IntegerLookup(id, result.index),
@@ -474,29 +604,43 @@ TypeInfo typeInfo)
         Unsafe.Add(ref dataRef, index) = item;
     }
 
-    [SuppressMessage("Trimming", "IL2072")]
-    void ICollection<KeyValuePair<Type, object>>.Add(KeyValuePair<Type, object> item)
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private static void CollectionWasModified()
     {
-        Add(item.Value, item.Key);
+        throw new InvalidOperationException("The collection was modified during enumeration.");
     }
 
-    void ICollection<KeyValuePair<Type, object>>.Clear()
+    IEnumerable<object> IReadOnlyTypeLookup.GetAll([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
     {
-        Clear();
+        return [.. GetAll(type)];
     }
 
-    bool ICollection<KeyValuePair<Type, object>>.Remove(KeyValuePair<Type, object> item)
+    IEnumerable<T> IReadOnlyTypeLookup.GetAll<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] T>()
     {
-        return Remove(item.Value, item.Key);
+        return [.. GetAll<T>()];
+    }
+
+    void ICollection<KeyValuePair<Type, object>>.CopyTo(KeyValuePair<Type, object>[] array, int arrayIndex)
+    {
+        ThrowHelpers.ThrowIfArrayIndexIsOutOfRange(arrayIndex, array, Count);
+        ref KeyValuePair<Type, object> entryRef = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), arrayIndex);
+        foreach (KeyValuePair<Type, object> entry in this)
+        {
+            entryRef = entry;
+            entryRef = ref Unsafe.Add(ref entryRef, 1);
+        }
     }
 
     IEnumerator<KeyValuePair<Type, object>> IEnumerable<KeyValuePair<Type, object>>.GetEnumerator()
     {
-        return new EnumeratorImpl(this);
+        MutationMonitor monitor = new(this);
+        Memory<IntegerLookup> lookups = this.lookups.AsMemory(0, lookupCount);
+        Memory<object> items = this.items.AsMemory(0, itemCount);
+        return new EnumeratorImpl(monitor, lookups, items);
     }
 
     IEnumerator IEnumerable.GetEnumerator()
     {
-        return new EnumeratorImpl(this);
+        return ((IEnumerable<KeyValuePair<Type, object>>)this).GetEnumerator();
     }
 }

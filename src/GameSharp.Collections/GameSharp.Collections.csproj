@@ -31,4 +31,8 @@
     <None Include="..\..\LICENSE.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\GameSharp\GameSharp.csproj" />
+  </ItemGroup>
+
 </Project>
