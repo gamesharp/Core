@@ -24,9 +24,9 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
             /// <inheritdoc cref="IEnumerator.Current"/>
             public readonly TypeLookupCluster Current => _core.Current;
 
-            internal Enumerator(TypeLookupClusterEnumeratorCore core, ReadLockHandle handle)
+            internal Enumerator(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items, ReadLockHandle handle)
             {
-                _core = core;
+                _core = new TypeLookupClusterEnumeratorCore(lookups, items);
                 _handle = handle;
             }
 
@@ -50,8 +50,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
             ReadLockHandle handle = _lookup.GetState(out ReadOnlySpan<IntegerLookup> lookups, out ReadOnlySpan<object> items);
             try
             {
-                TypeLookupClusterEnumeratorCore core = new(lookups, items);
-                return new Enumerator(core, handle);
+                return new Enumerator(lookups, items, handle);
             }
             catch
             {
@@ -86,9 +85,10 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         /// <inheritdoc cref="IEnumerator.Current"/>
         public readonly KeyValuePair<Type, object> Current => _core.Current;
 
-        internal Enumerator(TypeLookupEnumeratorCore<ClusterCollection.Enumerator> core, ReadLockHandle handle)
+        internal Enumerator(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items, ReadLockHandle handle)
         {
-            _core = core;
+            ClusterCollection.Enumerator clusterEnum = new(lookups, items, handle);
+            _core = new TypeLookupEnumeratorCore<ClusterCollection.Enumerator>(clusterEnum);
             _handle = handle;
         }
 
@@ -282,7 +282,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     /// </summary>
     public ConcurrentTypeLookup()
     {
-        syncRoot = new CountingReaderWriterLock();
+        syncRoot = new CountingReaderWriterLock(LockRecursionPolicy.SupportsRecursion);
         lookup = [];
     }
 
@@ -291,7 +291,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         ArgumentNullException.ThrowIfNull(lookup);
         this.lookup = lookup;
 
-        syncRoot = new CountingReaderWriterLock();
+        syncRoot = new CountingReaderWriterLock(LockRecursionPolicy.SupportsRecursion);
     }
 
     /// <inheritdoc/>
@@ -377,12 +377,11 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
     public Enumerator GetEnumerator()
     {
-        ReadLockHandle handle = syncRoot.TryEnterReadLock();
+        ReadLockHandle handle = GetState(out ReadOnlySpan<IntegerLookup> lookups, out ReadOnlySpan<object> items);
         try
-        {
-            ClusterCollection.Enumerator clustersEnumerator = Clusters.GetEnumerator();
-            TypeLookupEnumeratorCore<ClusterCollection.Enumerator> core = new(clustersEnumerator);
-            return new Enumerator(core, handle);
+        { 
+            ClusterCollection.Enumerator clusterEnumerator = new(lookups, items, handle);
+            return new Enumerator(lookups, items, handle);
         }
         catch
         {
@@ -413,8 +412,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     private protected override bool TryGetOne<T>(TypeInfo typeInfo, [MaybeNullWhen(false)] out T item) where T : class
     {
-        using ReadLockHandle handle = syncRoot.TryEnterReadLock();
-        GetState(out ReadOnlySpan<IntegerLookup> lookups, out ReadOnlySpan<object> items);
+        using ReadLockHandle handle = GetState(out ReadOnlySpan<IntegerLookup> lookups, out ReadOnlySpan<object> items);
         return TryGetOne(lookups, items, typeInfo, out item);
     }
 
