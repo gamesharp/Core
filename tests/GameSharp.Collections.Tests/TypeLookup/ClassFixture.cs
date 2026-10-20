@@ -28,7 +28,7 @@ public abstract class ClassFixture
     }
 }
 
-public abstract class ClassFixture<T> : ClassFixture where T : ReadOnlyTypeLookup
+public abstract class ClassFixture<T> : ClassFixture where T : IReadOnlyTypeLookup
 {
     public abstract T WithSingleCar { get; }
 

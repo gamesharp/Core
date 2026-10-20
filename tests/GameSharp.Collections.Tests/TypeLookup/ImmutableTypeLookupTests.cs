@@ -25,7 +25,18 @@ public sealed class ImmutableTypeLookupTests(ImmutableTypeLookupTests.ClassFixtu
         return ReferenceEquals(initial, result);
     }
 
-    protected override ImmutableTypeLookup Add<TItem>(ImmutableTypeLookup lookup, TItem item) => lookup.Add(item);
+    protected override ImmutableTypeLookup Add<TItem>(ImmutableTypeLookup lookup, TItem item)
+    {
+        return lookup.Add(item);
+    }
 
-    protected override ImmutableTypeLookup Remove<TItem>(ImmutableTypeLookup lookup, TItem item) => lookup.Remove(item);
+    protected override ImmutableTypeLookup Remove<TItem>(ImmutableTypeLookup lookup, TItem item)
+    {
+        return lookup.Remove(item);
+    }
+
+    protected override ImmutableTypeLookup Replace<TItem>(ImmutableTypeLookup lookup, TItem? existing, TItem replacement) where TItem : class
+    {
+        return lookup.Replace(existing, replacement);
+    }
 }

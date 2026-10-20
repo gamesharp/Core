@@ -36,7 +36,7 @@ public abstract class Tests
     protected static HashSet<KeyValuePair<Type, object>> AllKeyValuePairs => new(_allKeyValuePairs, KeyValuePairEqualityComparer.Default);
 }
 
-public abstract class Tests<TLookup>(ClassFixture<TLookup> fixture) : Tests where TLookup : ReadOnlyTypeLookup
+public abstract class Tests<TLookup>(ClassFixture<TLookup> fixture) : Tests where TLookup : IReadOnlyTypeLookup
 {
     [Fact(DisplayName = "Constructor Creates an Empty Collection")]
     public void Constructor()
@@ -175,12 +175,111 @@ public abstract class Tests<TLookup>(ClassFixture<TLookup> fixture) : Tests wher
         Assert.True(withAll.Contains(Aeroplane.Default));
     }
 
+    [Fact(DisplayName = "ICollection Contains Uses Type and Item")]
+    public void ICollectionContainsUsesTypeAndItem()
+    {
+        ICollection<KeyValuePair<Type, object>> withSingle = fixture.WithSingleCar;
+        Assert.True(withSingle.Contains(new KeyValuePair<Type, object>(typeof(Car), Car.Default)));
+        Assert.False(withSingle.Contains(new KeyValuePair<Type, object>(typeof(Car), new Car())));
+    }
+
+    [Fact(DisplayName = "ICollection CopyTo Copies All Items")]
+    public void ICollectionCopyToCopiesAllItems()
+    {
+        ICollection<KeyValuePair<Type, object>> withAll = fixture.WithAll;
+        KeyValuePair<Type, object>[] actual = new KeyValuePair<Type, object>[withAll.Count + 1];
+
+        withAll.CopyTo(actual, 1);
+
+        Assert.Equal(default, actual[0]);
+
+        HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
+        foreach (KeyValuePair<Type, object> entry in actual.Skip(1))
+        {
+            Assert.Removed(expected, entry);
+        }
+
+        Assert.NoneRemaining(expected);
+    }
+
+    [Fact(DisplayName = "ITypeLookup Is Not ReadOnly")]
+    public void ITypeLookupIsNotReadOnly()
+    {
+        Assert.Equal(!fixture.Empty.IsReadOnly, fixture.Empty is ITypeLookup);
+    }
+
+    [Fact(DisplayName = "ICollection Add and Remove Mutate TypeLookup")]
+    public void ICollectionAddAndRemoveMutateTypeLookup()
+    {
+        TLookup lookup = fixture.Empty;
+        ICollection<KeyValuePair<Type, object>> collection = lookup;
+        KeyValuePair<Type, object> entry = new(typeof(Car), Car.Default);
+        if (lookup is ITypeLookup)
+        {
+            collection.Add(entry);
+            Assert.True(lookup.Contains(Car.Default, typeof(Car)));
+
+            Assert.True(collection.Remove(entry));
+            Assert.False(lookup.Contains(Car.Default, typeof(Car)));
+        }
+        else
+        {
+            Assert.Throws<NotSupportedException>(() => collection.Add(entry));
+            Assert.Throws<NotSupportedException>(() => collection.Remove(entry));
+            Assert.Throws<NotSupportedException>(collection.Clear);
+        }
+    }
+
+    [Fact(DisplayName = "ICollection Clear Empties TypeLookup")]
+    public void ICollectionClearEmptiesTypeLookup()
+    {
+        TLookup lookup = fixture.WithAll;
+        ICollection<KeyValuePair<Type, object>> collection = lookup;
+        if (lookup is ITypeLookup)
+        {
+            collection.Clear();
+            Assert.Empty(lookup);
+        }
+        else
+        {
+            Assert.Throws<NotSupportedException>(collection.Clear);
+        }
+    }
+
+    [Fact(DisplayName = "Replace Existing Item Updates Reference")]
+    public void ReplaceExistingItemUpdatesReference()
+    {
+        Car replacement = new();
+        TLookup original = fixture.WithSingleCar;
+        TLookup updated = Replace(original, Car.Default, replacement);
+        Assert.True(WasMutatatedCorrectly(changeExpected: true, original, updated, out string? message), message);
+        Assert.Single<TLookup, Car>(updated, replacement);
+    }
+
+    [Fact(DisplayName = "Replace Missing Item Returns False")]
+    public void ReplaceMissingItemReturnsFalse()
+    {
+        TLookup original = fixture.WithSingleCar;
+        TLookup updated = Replace(original, Aeroplane.Default, new Aeroplane());
+        Assert.True(WasMutatatedCorrectly(changeExpected: false, original, updated, out string? message), message);
+        Assert.Single<TLookup, Car>(updated, Car.Default);
+    }
+
+    [Fact(DisplayName = "Replace with Null Existing Item Adds New Item")]
+    public void ReplaceWithNullExistingItemAddsNewItem()
+    {
+        TLookup original = fixture.Empty;
+        TLookup updated = Replace(original, null, Car.Default);
+        Assert.True(WasMutatatedCorrectly(changeExpected: true, original, updated, out string? message), message);
+        Assert.Single<TLookup, Car>(updated, Car.Default);
+    }
+
     [Fact(DisplayName = "Enumerator Iterates Over All Items")]
     public void EnumeratorIteratesOverAllExistingItems()
     {
         HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
 
-        ReadOnlyTypeLookup.Enumerator enumerator = fixture.WithAll.GetEnumerator();
+        IEnumerator<KeyValuePair<Type, object>> enumerator = fixture.WithAll.GetEnumerator();
         while (enumerator.MoveNext())
         {
             Assert.Removed(expected, enumerator.Current);
@@ -194,7 +293,7 @@ public abstract class Tests<TLookup>(ClassFixture<TLookup> fixture) : Tests wher
     {
         HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
 
-        using IEnumerator<KeyValuePair<Type, object>> enumerator = ((IEnumerable<KeyValuePair<Type, object>>)fixture.WithAll).GetEnumerator();
+        using IEnumerator<KeyValuePair<Type, object>> enumerator = fixture.WithAll.GetEnumerator();
         while (enumerator.MoveNext())
         {
             Assert.Removed(expected, enumerator.Current);
@@ -218,4 +317,6 @@ public abstract class Tests<TLookup>(ClassFixture<TLookup> fixture) : Tests wher
     protected abstract TLookup Add<TItem>(TLookup lookup, TItem item) where TItem : class;
 
     protected abstract TLookup Remove<TItem>(TLookup lookup, TItem item) where TItem : class;
+
+    protected abstract TLookup Replace<TItem>(TLookup lookup, TItem? existing, TItem replacement) where TItem : class;
 }

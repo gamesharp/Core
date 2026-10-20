@@ -24,4 +24,10 @@ public sealed class TypeLookupTests(TypeLookupTests.ClassFixture fixture) :
         lookup.Remove(item);
         return lookup;
     }
+
+    protected override Collections.TypeLookup Replace<TItem>(Collections.TypeLookup lookup, TItem? existing, TItem replacement) where TItem : class
+    {
+        lookup.Replace(existing, replacement);
+        return lookup;
+    }
 }

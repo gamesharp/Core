@@ -75,4 +75,10 @@ public sealed class ImmutableTypeLookupBuilderTests(ImmutableTypeLookupBuilderTe
         lookup.Remove(item);
         return lookup;
     }
+
+    protected override ImmutableTypeLookup.Builder Replace<TItem>(ImmutableTypeLookup.Builder lookup, TItem? existing, TItem replacement) where TItem : class
+    {
+        lookup.Replace(existing, replacement);
+        return lookup;
+    }
 }
