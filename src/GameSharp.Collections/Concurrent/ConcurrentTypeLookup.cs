@@ -61,6 +61,22 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         }
     }
 
+    private sealed class EnumeratorImpl(ReadOnlyMemory<IntegerLookup> lookups, ReadOnlyMemory<object> items, CountingReaderWriterLock rwLock) : 
+        TypeLookupEnumerator(lookups, items), IDisposable
+    {
+        void IDisposable.Dispose()
+        {
+            try
+            {
+                rwLock.syncRoot.ExitReadLock();
+            }
+            finally
+            {
+                rwLock.activeOperations.Signal();
+            }
+        }
+    }
+
     /// <inheritdoc cref="IEnumerator{T}"/>
     public ref struct Enumerator : IDisposable
     {
@@ -541,15 +557,14 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     IEnumerator<KeyValuePair<Type, object>> IEnumerable<KeyValuePair<Type, object>>.GetEnumerator()
     {
-        if (syncRoot.TryEnterReadLock() is not { IsHeld: true } handle)
+        if (syncRoot.TryEnterReadLock() is not { IsHeld: true })
         {
             return ((IEnumerable<KeyValuePair<Type, object>>)Volatile.Read(ref lookup)).GetEnumerator();
         }
 
-        using (handle)
-        {
-            return ((IEnumerable<KeyValuePair<Type, object>>)[.. lookup]).GetEnumerator();
-        }
+        ReadOnlyMemory<IntegerLookup> lookups = lookup.lookups.AsMemory(0, lookup.lookupCount);
+        ReadOnlyMemory<object> items = lookup.items.AsMemory(0, lookup.itemCount);
+        return new EnumeratorImpl(lookups, items, syncRoot);
     }
 
     IEnumerator IEnumerable.GetEnumerator()

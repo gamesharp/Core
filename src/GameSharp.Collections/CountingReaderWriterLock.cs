@@ -10,8 +10,8 @@ namespace GameSharp.Collections;
 /// </summary>
 public sealed class CountingReaderWriterLock : IDisposable
 {
-    private readonly ReaderWriterLockSlim _syncRoot;
-    private readonly CountdownEvent _activeOperations;
+    internal readonly ReaderWriterLockSlim syncRoot;
+    internal readonly CountdownEvent activeOperations;
     private bool _isClosing;
 
     /// <summary>
@@ -20,15 +20,15 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <param name="recursionPolicy">The <see cref="LockRecursionPolicy"/> to apply to the underlying synchronization primitive.</param>
     public CountingReaderWriterLock(LockRecursionPolicy recursionPolicy)
     {
-        _syncRoot = new(recursionPolicy);
-        _activeOperations = new(initialCount: 1);
+        syncRoot = new(recursionPolicy);
+        activeOperations = new(initialCount: 1);
     }
 
     /// <inheritdoc cref="CountingReaderWriterLock(LockRecursionPolicy)"/>
     public CountingReaderWriterLock()
     {
-        _syncRoot = new(LockRecursionPolicy.NoRecursion);
-        _activeOperations = new(initialCount: 1);
+        syncRoot = new(LockRecursionPolicy.NoRecursion);
+        activeOperations = new(initialCount: 1);
     }
 
     /// <returns>A handle that releases the read lock when disposed.</returns>
@@ -41,7 +41,7 @@ public sealed class CountingReaderWriterLock : IDisposable
             return EnterReadLockImpl();
         }
 
-        _activeOperations.Wait();
+        activeOperations.Wait();
         return default;
     }
 
@@ -57,12 +57,12 @@ public sealed class CountingReaderWriterLock : IDisposable
     {
         try
         {
-            _syncRoot.EnterReadLock();
-            return new ReadLockHandle(_syncRoot, _activeOperations);
+            syncRoot.EnterReadLock();
+            return new ReadLockHandle(syncRoot, activeOperations);
         }
         catch
         {
-            _activeOperations.Signal();
+            activeOperations.Signal();
             throw;
         }
     }
@@ -79,7 +79,7 @@ public sealed class CountingReaderWriterLock : IDisposable
             return EnterWriteLockImpl();
         }
         
-        _activeOperations.Wait();
+        activeOperations.Wait();
         return default;
     }
 
@@ -95,12 +95,12 @@ public sealed class CountingReaderWriterLock : IDisposable
     {
         try
         {
-            _syncRoot.EnterWriteLock();
-            return new WriteLockHandle(_syncRoot, _activeOperations);
+            syncRoot.EnterWriteLock();
+            return new WriteLockHandle(syncRoot, activeOperations);
         }
         catch
         {
-            _activeOperations.Signal();
+            activeOperations.Signal();
             throw;
         }
     }
@@ -118,7 +118,7 @@ public sealed class CountingReaderWriterLock : IDisposable
             return EnterUpgradableReadLockImpl();
         }
 
-        _activeOperations.Wait();
+        activeOperations.Wait();
         return default;
     }
 
@@ -134,12 +134,12 @@ public sealed class CountingReaderWriterLock : IDisposable
     {
         try
         {
-            _syncRoot.EnterUpgradeableReadLock();
-            return new UpgradableReadLockHandle(_syncRoot, _activeOperations);
+            syncRoot.EnterUpgradeableReadLock();
+            return new UpgradableReadLockHandle(syncRoot, activeOperations);
         }
         catch
         {
-            _activeOperations.Signal();
+            activeOperations.Signal();
             throw;
         }
     }
@@ -151,23 +151,23 @@ public sealed class CountingReaderWriterLock : IDisposable
     {
         if (Interlocked.Exchange(ref _isClosing, true))
         {
-            _activeOperations.Wait();
+            activeOperations.Wait();
             return;
         }
 
-        if (!_activeOperations.Signal())
+        if (!activeOperations.Signal())
         {
-            _activeOperations.Wait();
+            activeOperations.Wait();
         }
 
-        _syncRoot.Dispose();
+        syncRoot.Dispose();
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
         Close();
-        _activeOperations.Dispose();
+        activeOperations.Dispose();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -210,7 +210,7 @@ public sealed class CountingReaderWriterLock : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryIncrementActiveOperations() => !Volatile.Read(ref _isClosing) && _activeOperations.TryAddCount();
+    private bool TryIncrementActiveOperations() => !Volatile.Read(ref _isClosing) && activeOperations.TryAddCount();
 
     [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCanEnterLock()
