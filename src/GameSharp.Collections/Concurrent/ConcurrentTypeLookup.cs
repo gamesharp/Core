@@ -451,7 +451,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
                 return;
             }
 
-            using UpgradedReadLockHandle writeHandle = handle.Upgrade();
+            handle.Upgrade();
             Array.Clear(lookup.items, 0, lookup.itemCount);
             lookup.itemCount = 0;
             lookup.lookupCount = 0;
