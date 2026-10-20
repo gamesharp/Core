@@ -231,7 +231,7 @@ public sealed partial class ImmutableTypeLookup : ReadOnlyTypeLookup, IReadOnlyT
     }
 
     /// <inheritdoc cref="ICloneable.Clone"/>
-    public ImmutableTypeLookup Clone() => Count == 0 ? [] : new([.. lookups], [.. items]);
+    public ImmutableTypeLookup Clone() => Count == 0 ? [] : new(lookups[..lookupCount], items[..itemCount]);
 
     private protected override bool Contains(object item, TypeInfo typeInfo)
     {
