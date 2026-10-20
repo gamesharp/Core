@@ -68,6 +68,10 @@ public interface ITypeLookup : IReadOnlyTypeLookup, ICollection<KeyValuePair<Typ
         Clear();
     }
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2072",
+        Justification = "ICollection<KeyValuePair<Type, object>> cannot express DynamicallyAccessedMembers on KeyValuePair.Key.")]
     void ICollection<KeyValuePair<Type, object>>.Add(KeyValuePair<Type, object> item)
     {
         Add(item.Value, item.Key);
