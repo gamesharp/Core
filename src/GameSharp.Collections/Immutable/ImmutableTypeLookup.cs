@@ -9,7 +9,7 @@ namespace GameSharp.Collections.Immutable;
 /// Represents an immutable collection of objects, providing efficient lookup and retrieval by object type.
 /// </summary>
 /// <inheritdoc/>
-public sealed partial class ImmutableTypeLookup : ReadOnlyTypeLookup, IReadOnlyTypeLookup
+public sealed partial class ImmutableTypeLookup : ReadOnlyTypeLookup, IReadOnlyTypeLookup, ICloneable
 {
     private struct ArrayBuilder<T>(T[] destination, int logicalCount) : IArrayBuilder<T>
     {
@@ -229,6 +229,9 @@ public sealed partial class ImmutableTypeLookup : ReadOnlyTypeLookup, IReadOnlyT
         this.items = items;
         itemCount = items.Length;
     }
+
+    /// <inheritdoc cref="ICloneable.Clone"/>
+    public ImmutableTypeLookup Clone() => Count == 0 ? [] : new([.. lookups], [.. items]);
 
     private protected override bool Contains(object item, TypeInfo typeInfo)
     {
@@ -618,6 +621,11 @@ public sealed partial class ImmutableTypeLookup : ReadOnlyTypeLookup, IReadOnlyT
             entryRef = entry;
             entryRef = ref Unsafe.Add(ref entryRef, 1);
         }
+    }
+
+    object ICloneable.Clone()
+    {
+        return Clone();
     }
 
     IEnumerator<KeyValuePair<Type, object>> IEnumerable<KeyValuePair<Type, object>>.GetEnumerator()
