@@ -230,11 +230,11 @@ public class TypeLookup : MutableTypeLookup, ITypeLookup
 
     private int _version = int.MinValue;
 
-    private protected IntegerLookup[] lookups;
-    private protected int lookupCount;
+    internal IntegerLookup[] lookups;
+    internal int lookupCount;
 
-    private protected object[] items;
-    private protected int itemCount;
+    internal object[] items;
+    internal int itemCount;
 
     /// <inheritdoc/>
     public override int Count => itemCount;

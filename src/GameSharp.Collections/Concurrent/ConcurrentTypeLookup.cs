@@ -258,20 +258,37 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         }
     }
 
-    private readonly CountingReaderWriterLock _syncRoot = new();
-    private ImmutableTypeLookup _lookup = [];
+    internal readonly CountingReaderWriterLock syncRoot;
+    internal ImmutableTypeLookup lookup;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConcurrentTypeLookup"/> class.
+    /// </summary>
+    public ConcurrentTypeLookup()
+    {
+        syncRoot = new CountingReaderWriterLock();
+        lookup = [];
+    }
+
+    internal ConcurrentTypeLookup(ImmutableTypeLookup lookup)
+    {
+        ArgumentNullException.ThrowIfNull(lookup);
+        this.lookup = lookup;
+
+        syncRoot = new CountingReaderWriterLock();
+    }
 
     /// <inheritdoc/>
     public override int Count
     {
         get
         {
-            if (_syncRoot.EnterReadLock() is { IsHeld: true } handle)
+            if (syncRoot.EnterReadLock() is { IsHeld: true } handle)
             {
                 return GetCountLocked(handle);
             }
 
-            return Volatile.Read(ref _lookup).Count;
+            return Volatile.Read(ref lookup).Count;
         }
     }
 
@@ -280,12 +297,12 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            if (_syncRoot.EnterReadLock() is { IsHeld: true } handle)
+            if (syncRoot.EnterReadLock() is { IsHeld: true } handle)
             {
                 return GetClusterCountLocked(handle);
             }
 
-            return Volatile.Read(ref _lookup).lookupCount;
+            return Volatile.Read(ref lookup).lookupCount;
         }
     }
 
@@ -298,10 +315,10 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     /// Transitions this lookup to it's published runtime state, completing any in-flight synchronized mutations
     /// and switching subsequent updates to the snapshot-based concurrent path.
     /// </summary>
-    public void Publish() => _syncRoot.Close();
+    public void Publish() => syncRoot.Close();
 
     /// <inheritdoc/>
-    public void Dispose() => _syncRoot.Dispose();
+    public void Dispose() => syncRoot.Dispose();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private protected override bool Contains(object item, TypeInfo typeInfo)
@@ -321,12 +338,12 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
-        if (_syncRoot.EnterUpgradeableReadLock() is { IsHeld: true } handle)
+        if (syncRoot.EnterUpgradeableReadLock() is { IsHeld: true } handle)
         {
             ClearLocked(handle);
         }
 
-        Interlocked.Exchange(ref _lookup, []);
+        Interlocked.Exchange(ref lookup, []);
     }
 
     /// <inheritdoc cref="IReadOnlyTypeLookup.GetAll(Type)"/>
@@ -344,7 +361,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
     public Enumerator GetEnumerator()
     {
-        ReadLockHandle handle = _syncRoot.TryEnterReadLock();
+        ReadLockHandle handle = syncRoot.TryEnterReadLock();
         try
         {
             ClusterCollection.Enumerator clustersEnumerator = Clusters.GetEnumerator();
@@ -360,46 +377,46 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     private protected override bool Add(object item, TypeInfo typeInfo)
     {
-        if (_syncRoot.TryEnterUpgradeableReadLock() is { IsHeld: true } handle)
+        if (syncRoot.TryEnterUpgradeableReadLock() is { IsHeld: true } handle)
         {
             return AddLocked(item, typeInfo, handle);
         }
 
-        return ImmutableTypeLookup.InterlockedAdd(ref _lookup, item, typeInfo);
+        return ImmutableTypeLookup.InterlockedAdd(ref lookup, item, typeInfo);
     }
 
     private protected override bool Remove(object item, TypeInfo typeInfo)
     {
-        if (_syncRoot.TryEnterUpgradeableReadLock() is { IsHeld: true } handle)
+        if (syncRoot.TryEnterUpgradeableReadLock() is { IsHeld: true } handle)
         {
             return RemoveLocked(item, typeInfo, handle);
         }
         
-        return ImmutableTypeLookup.InterlockedRemove(ref _lookup, item, typeInfo);
+        return ImmutableTypeLookup.InterlockedRemove(ref lookup, item, typeInfo);
     }
 
     private protected override bool TryGetOne<T>(TypeInfo typeInfo, [MaybeNullWhen(false)] out T item) where T : class
     {
-        using ReadLockHandle handle = _syncRoot.TryEnterReadLock();
+        using ReadLockHandle handle = syncRoot.TryEnterReadLock();
         GetState(out ReadOnlySpan<IntegerLookup> lookups, out ReadOnlySpan<object> items);
         return TryGetOne(lookups, items, typeInfo, out item);
     }
 
     private protected override bool Replace(object existingItem, object newItem, TypeInfo typeInfo)
     {
-        if (_syncRoot.TryEnterUpgradeableReadLock() is { IsHeld: true } handle)
+        if (syncRoot.TryEnterUpgradeableReadLock() is { IsHeld: true } handle)
         {
             return ReplaceLocked(existingItem, newItem, typeInfo, handle);
         }
 
-        return ImmutableTypeLookup.InterlockedReplace(ref _lookup, existingItem, newItem, typeInfo);
+        return ImmutableTypeLookup.InterlockedReplace(ref lookup, existingItem, newItem, typeInfo);
     }
 
     private int GetCountLocked(ReadLockHandle handle)
     {
         using (handle)
         {
-            return _lookup.Count;
+            return lookup.Count;
         }
     }
 
@@ -407,7 +424,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     {
         using (handle)
         {
-            return _lookup.lookupCount;
+            return lookup.lookupCount;
         }
     }
 
@@ -415,15 +432,15 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     {
         try
         {
-            if (_lookup.Count == 0)
+            if (lookup.Count == 0)
             {
                 return;
             }
 
             using UpgradedReadLockHandle writeHandle = handle.Upgrade();
-            Array.Clear(_lookup.items, 0, _lookup.itemCount);
-            _lookup.itemCount = 0;
-            _lookup.lookupCount = 0;
+            Array.Clear(lookup.items, 0, lookup.itemCount);
+            lookup.itemCount = 0;
+            lookup.lookupCount = 0;
         }
         finally
         {
@@ -433,10 +450,10 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     private bool AddLocked(object item, TypeInfo typeInfo, UpgradableReadLockHandle handle)
     {
-        LockedArrayBuilder builder = new(CollectableArrayFactory.Default, ref _lookup.lookups, ref _lookup.items, handle)
+        LockedArrayBuilder builder = new(CollectableArrayFactory.Default, ref lookup.lookups, ref lookup.items, handle)
         {
-            lookupCount = ref _lookup.lookupCount,
-            itemCount = ref _lookup.itemCount
+            lookupCount = ref lookup.lookupCount,
+            itemCount = ref lookup.itemCount
         };
 
         try
@@ -452,10 +469,10 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     private bool RemoveLocked(object item, TypeInfo typeInfo, UpgradableReadLockHandle handle)
     {
-        LockedArrayBuilder builder = new(CollectableArrayFactory.Default, ref _lookup.lookups, ref _lookup.items, handle)
+        LockedArrayBuilder builder = new(CollectableArrayFactory.Default, ref lookup.lookups, ref lookup.items, handle)
         {
-            lookupCount = ref _lookup.lookupCount,
-            itemCount = ref _lookup.itemCount
+            lookupCount = ref lookup.lookupCount,
+            itemCount = ref lookup.itemCount
         };
 
         try
@@ -471,15 +488,15 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     private bool ReplaceLocked(object existingItem, object newItem, TypeInfo typeInfo, UpgradableReadLockHandle handle)
     {
-        LockedArrayBuilder builder = new(CollectableArrayFactory.Default, ref Unsafe.NullRef<IntegerLookup[]>(), ref _lookup.items, handle)
+        LockedArrayBuilder builder = new(CollectableArrayFactory.Default, ref Unsafe.NullRef<IntegerLookup[]>(), ref lookup.items, handle)
         {
             lookupCount = ref Unsafe.NullRef<int>(),
-            itemCount = ref _lookup.itemCount
+            itemCount = ref lookup.itemCount
         };
 
         try
         {
-            Span<IntegerLookup> lookups = _lookup.lookups.AsSpan(0, _lookup.lookupCount);
+            Span<IntegerLookup> lookups = lookup.lookups.AsSpan(0, lookup.lookupCount);
             TypeLookup.Replace(lookups, ref builder, existingItem, newItem, typeInfo);
             return builder.WasModified;
         }
@@ -491,10 +508,10 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     private ReadLockHandle GetState(out ReadOnlySpan<IntegerLookup> lookups, out ReadOnlySpan<object> items)
     {
-        ReadLockHandle handle = _syncRoot.EnterReadLock();
+        ReadLockHandle handle = syncRoot.EnterReadLock();
         try
         {
-            ImmutableTypeLookup lookup = Volatile.Read(ref _lookup);
+            ImmutableTypeLookup lookup = Volatile.Read(ref lookup);
             lookups = lookup.lookups.AsSpan(0, lookup.lookupCount);
             items = lookup.items.AsSpan(0, lookup.itemCount);
             return handle;
@@ -518,20 +535,20 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     void ICollection<KeyValuePair<Type, object>>.CopyTo(KeyValuePair<Type, object>[] array, int arrayIndex)
     {
-        using ReadLockHandle handle = _syncRoot.TryEnterReadLock();
-        ((ICollection<KeyValuePair<Type, object>>)Volatile.Read(ref _lookup)).CopyTo(array, arrayIndex);
+        using ReadLockHandle handle = syncRoot.TryEnterReadLock();
+        ((ICollection<KeyValuePair<Type, object>>)Volatile.Read(ref lookup)).CopyTo(array, arrayIndex);
     }
 
     IEnumerator<KeyValuePair<Type, object>> IEnumerable<KeyValuePair<Type, object>>.GetEnumerator()
     {
-        if (_syncRoot.TryEnterReadLock() is not { IsHeld: true } handle)
+        if (syncRoot.TryEnterReadLock() is not { IsHeld: true } handle)
         {
-            return ((IEnumerable<KeyValuePair<Type, object>>)Volatile.Read(ref _lookup)).GetEnumerator();
+            return ((IEnumerable<KeyValuePair<Type, object>>)Volatile.Read(ref lookup)).GetEnumerator();
         }
 
         using (handle)
         {
-            return ((IEnumerable<KeyValuePair<Type, object>>)[.. _lookup]).GetEnumerator();
+            return ((IEnumerable<KeyValuePair<Type, object>>)[.. lookup]).GetEnumerator();
         }
     }
 
