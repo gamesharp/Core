@@ -45,8 +45,7 @@ public sealed partial class ImmutableTypeLookup
         {
         }
 
-        internal Builder(ReadOnlySpan<IntegerLookup> lookups, ReadOnlySpan<object> items)
-            : base([.. lookups], lookups.Length, [.. items], items.Length)
+        internal Builder(IntegerLookup[] lookups, object[] items) : base(lookups, items)
         {
         }
 

@@ -216,8 +216,18 @@ public sealed partial class ImmutableTypeLookup : ReadOnlyTypeLookup, IReadOnlyT
     {
         this.lookups = lookups;
         this.lookupCount = lookupCount;
+
         this.items = items;
         this.itemCount = itemCount;
+    }
+
+    internal ImmutableTypeLookup(IntegerLookup[] lookups, object[] items)
+    {
+        this.lookups = lookups;
+        lookupCount = lookups.Length;
+
+        this.items = items;
+        itemCount = items.Length;
     }
 
     private protected override bool Contains(object item, TypeInfo typeInfo)

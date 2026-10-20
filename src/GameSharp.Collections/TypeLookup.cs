@@ -252,8 +252,18 @@ public class TypeLookup : MutableTypeLookup, ITypeLookup
     {
         this.lookups = lookups;
         this.lookupCount = lookupCount;
+
         this.items = items;
         this.itemCount = itemCount;
+    }
+
+    internal TypeLookup(IntegerLookup[] lookups, object[] items)
+    {
+        this.lookups = lookups;
+        lookupCount = lookups.Length;
+
+        this.items = items;
+        itemCount = items.Length;
     }
 
     private protected override bool Replace(object existingItem, object newItem, TypeInfo typeInfo)
