@@ -6,18 +6,16 @@ internal sealed class CollectableArrayFactory : ArrayFactory
 {
     public static CollectableArrayFactory Default { get; } = new();
 
-    public override ref T Get<T>(out Array array, int minimumLength)
+    public override Span<T> Get<T>(out Array array, int length, int capacity)
     {
-        array = GC.AllocateUninitializedArray<T>(minimumLength);
-        return ref ReinterpretArrayDataRef<T>(array);
+        array = GC.AllocateUninitializedArray<T>(capacity);
+        return MemoryMarshal.CreateSpan(ref ReinterpretArrayDataRef<T>(array), length);
     }
 
-    protected override ref T Resize<T>(ref Array array, int count, int newSize)
+    protected override void Resize<T>(ref Array array, ref Span<T> span, int newSize)
     {
-        ReadOnlySpan<T> src = MemoryMarshal.CreateReadOnlySpan(ref ReinterpretArrayDataRef<T>(array), count);
-        ref T data = ref Get<T>(out array, newSize);
-        Span<T> dst = MemoryMarshal.CreateSpan(ref data, newSize);
-        src.CopyTo(dst);
-        return ref data;
+        Span<T> newSpan = Get<T>(out array, span.Length, newSize);
+        span.CopyTo(newSpan);
+        span = newSpan;
     }
 }

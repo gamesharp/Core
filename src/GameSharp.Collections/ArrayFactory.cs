@@ -6,46 +6,44 @@ namespace GameSharp.Collections;
 internal abstract class ArrayFactory
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T EnsureCapacity<T>(ref T[] array, int count)
+    public void EnsureCapacity<T>(ref T[] array, int count)
     {
-        ref T data = ref Unsafe.NullRef<T>();
-        EnsureCapacity(ref Unsafe.As<T[], Array>(ref array), ref data, count);
-        return ref data;
+        Span<T> span = default;
+        EnsureCapacity(ref Unsafe.As<T[], Array>(ref array), ref span);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void EnsureCapacity<T>(ref Array array, ref T data, int count)
+    public void EnsureCapacity<T>(ref Array array, ref Span<T> span)
     {
-        if (count > array.Length)
+        if (span.Length > array.Length)
         {
-            data = ref Grow<T>(ref array, count);
+            Grow(ref array, ref span);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T SetCount<T>(ref T[] array, int count)
+    public void SetCount<T>(ref T[] array, int count)
     {
-        ref T data = ref MemoryMarshal.GetArrayDataReference(array);
-        SetCount(ref Unsafe.As<T[], Array>(ref array), ref data, count);
-        return ref data;
+        Span<T> span = new(array, 0, count);
+        SetCount(ref Unsafe.As<T[], Array>(ref array), ref span);
     }
 
-    public void SetCount<T>(ref Array array, ref T data, int count)
+    public void SetCount<T>(ref Array array, ref Span<T> span)
     {
-        if (count > array.Length)
+        if (span.Length > array.Length)
         {
-            data = ref Grow<T>(ref array, count);
+            Grow(ref array, ref span);
         }
-        else if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && count < array.Length)
+        else if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && span.Length < array.Length)
         {
-            Span<T> tail = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref data, count), array.Length - count);
+            Span<T> tail = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref MemoryMarshal.GetReference(span), span.Length), array.Length - span.Length);
             tail.Clear();
         }
     }
+    
+    public abstract Span<T> Get<T>(out Array array, int length, int capacity);
 
-    public abstract ref T Get<T>(out Array array, int minimumLength);
-
-    protected abstract ref T Resize<T>(ref Array array, int count, int newSize);
+    protected abstract void Resize<T>(ref Array array, ref Span<T> span, int newSize);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected static ref T ReinterpretArrayDataRef<T>(Array array)
@@ -53,14 +51,14 @@ internal abstract class ArrayFactory
         return ref Unsafe.As<byte, T>(ref MemoryMarshal.GetArrayDataReference(array));
     }
 
-    private ref T Grow<T>(ref Array array, int count)
+    private void Grow<T>(ref Array array, ref Span<T> span)
     {
         int capacity = Math.Max(array.Length, 2);
         do
         {
             capacity += capacity >> 1;
         }
-        while (capacity < count);
-        return ref Resize<T>(ref array, count, capacity);
+        while (capacity < span.Length);
+        Resize(ref array, ref span, capacity);
     }
 }

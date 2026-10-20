@@ -10,38 +10,34 @@ internal sealed class PooledArrayFactory : ArrayFactory
 {
     public static PooledArrayFactory Default { get; } = new();
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override ref T Get<T>(out Array array, int minimumLength)
+    public override Span<T> Get<T>(out Array array, int length, int capacity)
     {
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
         {
             if (typeof(T).IsValueType)
             {
-                array = RentFromShared<T>(minimumLength);
+                array = RentFromShared<T>(capacity);
             }
             else
             {
-                array = RentFromShared<object>(minimumLength);
+                array = RentFromShared<object>(capacity);
             }
         }
         else
         {
-            array = RentFromShared<byte>(ComputeByteLength<T>(minimumLength));
+            array = RentFromShared<byte>(ComputeByteLength<T>(capacity));
         }
 
-        return ref ReinterpretArrayDataRef<T>(array);
+        return MemoryMarshal.CreateSpan(ref ReinterpretArrayDataRef<T>(array), length);
     }
 
-    protected override ref T Resize<T>(ref Array array, int count, int newSize)
+    protected override void Resize<T>(ref Array array, ref Span<T> span, int newSize)
     {
-        ref T data = ref Get<T>(out Array newArray, newSize);
-
+        Span<T> newSpan = Get<T>(out Array newArray, span.Length, newSize);
         try
         {
-            ReadOnlySpan<T> src = MemoryMarshal.CreateReadOnlySpan(ref ReinterpretArrayDataRef<T>(array), count);
-            Span<T> dst = MemoryMarshal.CreateSpan(ref data, newSize);
-            src.CopyTo(dst);
-            return ref data;
+            span.CopyTo(newSpan);
+            span = newSpan;
         }
         catch
         {
