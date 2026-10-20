@@ -18,7 +18,7 @@ public ref struct UpgradedReadLockHandle : IDisposable
     internal UpgradedReadLockHandle(ReaderWriterLockSlim rwLock)
     {
         _lock = rwLock;
-        opCount = 1;
+        opCount = 0;
     }
 
     /// <inheritdoc/>
