@@ -8,7 +8,8 @@ internal abstract class ArrayFactory
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void EnsureCapacity<T>(ref T[] array, int count)
     {
-        Span<T> span = default;
+        Span<T> span = new(array);
+        span.GetLengthRef() = count;
         EnsureCapacity(ref Unsafe.As<T[], Array>(ref array), ref span);
     }
 
@@ -24,7 +25,8 @@ internal abstract class ArrayFactory
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetCount<T>(ref T[] array, int count)
     {
-        Span<T> span = new(array, 0, count);
+        Span<T> span = new(array);
+        span.GetLengthRef() = count;
         SetCount(ref Unsafe.As<T[], Array>(ref array), ref span);
     }
 

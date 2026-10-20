@@ -26,7 +26,7 @@ public ref struct PooledList<T>
         {
             ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
             ArgumentOutOfRangeException.ThrowIfNegative(value);
-            GetLengthRefUnsafe(ref span) = value;
+            span.GetLengthRef() = value;
             PooledArrayFactory.Default.SetCount(ref array, ref span);
         }
     }
@@ -95,7 +95,7 @@ public ref struct PooledList<T>
     {
         ObjectDisposedException.ThrowIf(array is null, typeof(PooledList<T>));
         Span<T> newSpan = span;
-        int index = GetLengthRefUnsafe(ref newSpan)++;
+        int index = newSpan.GetLengthRef()++;
         PooledArrayFactory.Default.EnsureCapacity(ref array, ref newSpan);
         Unsafe.Add(ref MemoryMarshal.GetReference(newSpan), index) = item;
         span = newSpan;
@@ -116,7 +116,7 @@ public ref struct PooledList<T>
 
         Span<T> newSpan = span;
         int index = span.Length;
-        GetLengthRefUnsafe(ref newSpan) += items.Length;
+        newSpan.GetLengthRef() += items.Length;
         PooledArrayFactory.Default.EnsureCapacity(ref array, ref newSpan);
         Span<T> dst = newSpan.Slice(index, items.Length);
         items.CopyTo(dst);
@@ -139,7 +139,7 @@ public ref struct PooledList<T>
         }
 
         Span<T> newSpan = span;
-        int lastIndex = GetLengthRefUnsafe(ref newSpan)++;
+        int lastIndex = newSpan.GetLengthRef()++;
         PooledArrayFactory.Default.EnsureCapacity(ref array, ref newSpan);
         ref T data = ref MemoryMarshal.GetReference(newSpan);
 
@@ -179,7 +179,7 @@ public ref struct PooledList<T>
         {
             span.Clear();
         }
-        GetLengthRefUnsafe(ref span) = 0;
+        span.GetLengthRef() = 0;
     }
 
     /// <summary>
@@ -204,7 +204,7 @@ public ref struct PooledList<T>
             return false;
         }
 
-        ref T itemRef = ref Unsafe.Add(ref MemoryMarshal.GetReference(span), --GetLengthRefUnsafe(ref span));
+        ref T itemRef = ref Unsafe.Add(ref MemoryMarshal.GetReference(span), --span.GetLengthRef());
         item = itemRef!;
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
         {
@@ -249,7 +249,7 @@ public ref struct PooledList<T>
             Unsafe.Add(ref data, newCount) = default!;
         }
 
-        GetLengthRefUnsafe(ref span) = newCount;
+        span.GetLengthRef() = newCount;
     }
 
     /// <summary>
@@ -339,9 +339,6 @@ public ref struct PooledList<T>
         array = null;
         span = default;
     }
-
-    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_length")]
-    private static extern ref int GetLengthRefUnsafe(ref Span<T> span);
 
     [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
     private readonly void ThrowIfIndexOutOfRange(int index, [CallerArgumentExpression(nameof(index))] string? paramName = null)
