@@ -527,7 +527,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         ReadLockHandle handle = syncRoot.EnterReadLock();
         try
         {
-            ImmutableTypeLookup lookup = Volatile.Read(ref lookup);
+            ImmutableTypeLookup lookup = Volatile.Read(ref this.lookup);
             lookups = lookup.lookups.AsSpan(0, lookup.lookupCount);
             items = lookup.items.AsSpan(0, lookup.itemCount);
             return handle;
