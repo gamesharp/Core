@@ -1,8 +1,8 @@
-﻿using System;
+﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
-namespace GameSharp;
+namespace GameSharp.Collections;
 
 /// <summary>
 /// A disposable reader–writer lock that counts active lock holders and blocks disposal until all holders have released
@@ -12,7 +12,7 @@ public sealed class CountingReaderWriterLock : IDisposable
 {
     private readonly ReaderWriterLockSlim _syncRoot;
     private readonly CountdownEvent _activeOperations;
-    private Flag _isClosing;
+    private bool _isClosing;
 
     /// <summary>
     /// Initializes a new instance of <see cref="CountingReaderWriterLock"/> class.
@@ -48,15 +48,7 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <inheritdoc cref="TryEnterReadLock"/>
     public ReadLockHandle EnterReadLock()
     {
-        if (!TryIncrementActiveOperations())
-        {
-#if PRESERVE_STACK_TRACE
-            throw ThrowHelpers.LockClosingOrClosedException();
-#else
-            ThrowHelpers.LockClosingOrClosed();
-#endif
-        }
-
+        EnsureCanEnterLock();
         return EnterReadLockImpl();
     }
 
@@ -94,15 +86,7 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <inheritdoc cref="TryEnterWriteLock"/>
     public WriteLockHandle EnterWriteLock()
     {
-        if (!TryIncrementActiveOperations())
-        {
-#if PRESERVE_STACK_TRACE
-            throw ThrowHelpers.LockClosingOrClosedException();
-#else
-            ThrowHelpers.LockClosingOrClosed();
-#endif
-        }
-
+        EnsureCanEnterLock();
         return EnterWriteLockImpl();
     }
 
@@ -141,15 +125,7 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <inheritdoc cref="TryEnterUpgradeableReadLock"/>
     public UpgradableReadLockHandle EnterUpgradeableReadLock()
     {
-        if (!TryIncrementActiveOperations())
-        {
-#if PRESERVE_STACK_TRACE
-            throw ThrowHelpers.LockClosingOrClosedException();
-#else
-            ThrowHelpers.LockClosingOrClosed();
-#endif
-        }
-
+        EnsureCanEnterLock();
         return EnterUpgradableReadLockImpl();
     }
 
@@ -173,7 +149,7 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// </summary>
     public void Close()
     {
-        if (FlagInterlocked.Exchange(ref _isClosing, true))
+        if (Interlocked.Exchange(ref _isClosing, true))
         {
             _activeOperations.Wait();
             return;
@@ -234,5 +210,20 @@ public sealed class CountingReaderWriterLock : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryIncrementActiveOperations() => !FlagInterlocked.Read(ref _isClosing) && _activeOperations.TryAddCount();
+    private bool TryIncrementActiveOperations() => !Volatile.Read(ref _isClosing) && _activeOperations.TryAddCount();
+
+    [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureCanEnterLock()
+    {
+        if (!TryIncrementActiveOperations())
+        {
+            LockClosingOrClosed();
+        }
+    }
+
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    private static void LockClosingOrClosed()
+    {
+        throw new InvalidOperationException("Cannot enter the lock because it is closing or has been closed.");
+    }
 }
