@@ -2,15 +2,25 @@
 
 namespace GameSharp.Collections.Tests.TypeLookup;
 
-public sealed class ImmutableTypeLookupTests(ImmutableTypeLookupTests.ClassFixture fixture) : 
-    Tests<ImmutableTypeLookup>(fixture), 
-    IClassFixture<ImmutableTypeLookupTests.ClassFixture>
+public sealed class ImmutableTypeLookupTests : Tests<ImmutableTypeLookup, ImmutableTypeLookupTests>, ITheoryDataProvider<ImmutableTypeLookup>
 {
-    public sealed class ClassFixture : ClassFixture<ImmutableTypeLookup>
+    public static TheoryData<ImmutableTypeLookup> WithSingleCar => [ImmutableWithSingleCar];
+
+    public static TheoryData<ImmutableTypeLookup> WithAll => [ImmutableWithAll];
+
+    public static TheoryData<ImmutableTypeLookup> Empty => [[]];
+
+    public override void EnumeratorIteratesOverAllExistingItems(ImmutableTypeLookup inital)
     {
-        public override ImmutableTypeLookup WithSingleCar => ImmutableWithSingleCar;
-        public override ImmutableTypeLookup WithAll => ImmutableWithAll;
-        public override ImmutableTypeLookup Empty => [];
+        HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
+
+        ImmutableTypeLookup.Enumerator enumerator = inital.GetEnumerator();
+        while (enumerator.MoveNext())
+        {
+            Assert.Removed(expected, enumerator.Current);
+        }
+
+        Assert.NoneRemaining(expected);
     }
 
     protected override bool WasMutatatedCorrectly(bool changeExpected, ImmutableTypeLookup initial, ImmutableTypeLookup result, out string? message)

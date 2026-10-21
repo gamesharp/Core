@@ -1,24 +1,35 @@
 ﻿using System.Collections.Concurrent;
-using System.Runtime.InteropServices;
 using Xunit;
 
 namespace GameSharp.Collections.Tests.TypeLookup;
 
-public sealed class ImmutableTypeLookupBuilderTests(ImmutableTypeLookupBuilderTests.ClassFixture fixture) :
-    Tests<ImmutableTypeLookup.Builder>(fixture),
-    IClassFixture<ImmutableTypeLookupBuilderTests.ClassFixture> 
+public sealed class ImmutableTypeLookupBuilderTests : 
+    Tests<ImmutableTypeLookup.Builder, ImmutableTypeLookupBuilderTests>, 
+    ITheoryDataProvider<ImmutableTypeLookup.Builder>
 {
-    public sealed class ClassFixture : ClassFixture<ImmutableTypeLookup.Builder>
+    public static TheoryData<ImmutableTypeLookup.Builder> WithSingleCar => [ImmutableWithSingleCar.AsImmutableBuilder()];
+
+    public static TheoryData<ImmutableTypeLookup.Builder> WithAll => [ImmutableWithAll.AsImmutableBuilder()];
+
+    public static TheoryData<ImmutableTypeLookup.Builder> Empty => [ImmutableTypeLookup.CreateBuilder()];
+
+    public override void EnumeratorIteratesOverAllExistingItems(ImmutableTypeLookup.Builder initial)
     {
-        public override ImmutableTypeLookup.Builder WithSingleCar => ImmutableWithSingleCar.AsImmutableBuilder();
-        public override ImmutableTypeLookup.Builder WithAll => ImmutableWithAll.AsImmutableBuilder();
-        public override ImmutableTypeLookup.Builder Empty => ImmutableTypeLookup.CreateBuilder();
+        HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
+
+        Collections.TypeLookup.Enumerator enumerator = initial.GetEnumerator();
+        while (enumerator.MoveNext())
+        {
+            Assert.Removed(expected, enumerator.Current);
+        }
+
+        Assert.NoneRemaining(expected);
     }
 
     [Fact(DisplayName = "ToImmutable Returns a ImmutableTypeLookup Corresponding to the Builder's Content")]
     public void ToImmutableReturnsImmutableWithCorrespondingContent()
     {
-        ImmutableTypeLookup withAll = TypeLookup.ClassFixture.ImmutableWithAll;
+        ImmutableTypeLookup withAll = ImmutableWithAll;
         ImmutableTypeLookup.Builder builder = withAll.AsImmutableBuilder();
 
         HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
@@ -35,7 +46,7 @@ public sealed class ImmutableTypeLookupBuilderTests(ImmutableTypeLookupBuilderTe
     public async Task ToImmutableCannotBeCalledMoreThanOnce()
     {
         const int ThreadCount = 10;
-        ImmutableTypeLookup.Builder builder = TypeLookup.ClassFixture.ImmutableWithSingleCar.AsImmutableBuilder();
+        ImmutableTypeLookup.Builder builder = ImmutableWithSingleCar.AsImmutableBuilder();
         ConcurrentBag<Exception> exceptions = [];
         using (Barrier barrier = new(ThreadCount))
         {

@@ -2,15 +2,25 @@
 
 namespace GameSharp.Collections.Tests.TypeLookup;
 
-public sealed class TypeLookupTests(TypeLookupTests.ClassFixture fixture) : 
-    Tests<Collections.TypeLookup>(fixture), 
-    IClassFixture<TypeLookupTests.ClassFixture>
+public sealed class TypeLookupTests : Tests<Collections.TypeLookup, TypeLookupTests>, ITheoryDataProvider<Collections.TypeLookup>
 {
-    public sealed class ClassFixture : ClassFixture<Collections.TypeLookup>
+    public static TheoryData<Collections.TypeLookup> WithSingleCar => [ImmutableWithSingleCar.AsTypeLookup()];
+
+    public static TheoryData<Collections.TypeLookup> WithAll => [ImmutableWithAll.AsTypeLookup()];
+
+    public static TheoryData<Collections.TypeLookup> Empty => [[]];
+
+    public override void EnumeratorIteratesOverAllExistingItems(Collections.TypeLookup initial)
     {
-        public override Collections.TypeLookup WithSingleCar => ImmutableWithSingleCar.AsTypeLookup();
-        public override Collections.TypeLookup WithAll => ImmutableWithAll.AsTypeLookup();
-        public override Collections.TypeLookup Empty => [];
+        HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
+
+        Collections.TypeLookup.Enumerator enumerator = initial.GetEnumerator();
+        while (enumerator.MoveNext())
+        {
+            Assert.Removed(expected, enumerator.Current);
+        }
+
+        Assert.NoneRemaining(expected);
     }
 
     protected override Collections.TypeLookup Add<TItem>(Collections.TypeLookup lookup, TItem item)
