@@ -10,9 +10,22 @@ namespace GameSharp.Collections;
 /// </summary>
 public sealed class CountingReaderWriterLock : IDisposable
 {
+    [Flags]
+    private enum State : byte
+    {
+        None = 0,
+        Closing = 1,
+        Disposed = 2
+    }
+
     internal readonly ReaderWriterLockSlim syncRoot;
     internal readonly CountdownEvent activeOperations;
-    private bool _isClosing;
+    private State _state;
+    private bool IsDisposed
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ((State)Volatile.Read(ref AsByte(ref _state)) & State.Disposed) != 0;
+    }
 
     /// <summary>
     /// Initializes a new instance of <see cref="CountingReaderWriterLock"/> class.
@@ -33,9 +46,11 @@ public sealed class CountingReaderWriterLock : IDisposable
 
     /// <returns>A handle that releases the read lock when disposed.</returns>
     /// <inheritdoc cref="ReaderWriterLockSlim.EnterReadLock"/>
+    /// <exception cref="ObjectDisposedException">The lock has been disposed.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadLockHandle TryEnterReadLock()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (TryIncrementActiveOperations())
         {
             return EnterReadLockImpl();
@@ -48,10 +63,11 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <inheritdoc cref="TryEnterReadLock"/>
     public ReadLockHandle EnterReadLock()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         EnsureCanEnterLock();
         return EnterReadLockImpl();
     }
-
+    
     [MethodImpl(MethodImplOptions.NoInlining)]
     private ReadLockHandle EnterReadLockImpl()
     {
@@ -72,8 +88,10 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// </summary>
     /// <returns>A handle that releases the write lock when disposed.</returns>
     /// <inheritdoc cref="CountdownEvent.AddCount()"/>
+    /// <exception cref="ObjectDisposedException">The lock has been disposed.</exception>
     public WriteLockHandle TryEnterWriteLock()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (TryIncrementActiveOperations())
         {
             return EnterWriteLockImpl();
@@ -86,6 +104,7 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <inheritdoc cref="TryEnterWriteLock"/>
     public WriteLockHandle EnterWriteLock()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         EnsureCanEnterLock();
         return EnterWriteLockImpl();
     }
@@ -110,9 +129,11 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// </summary>
     /// <returns>A handle that releases the upgradeable read lock when disposed.</returns>
     /// <inheritdoc cref="CountdownEvent.TryAddCount()"/>
+    /// <exception cref="ObjectDisposedException">The lock has been disposed.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public UpgradableReadLockHandle TryEnterUpgradeableReadLock()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (TryIncrementActiveOperations())
         {
             return EnterUpgradableReadLockImpl();
@@ -125,6 +146,7 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <inheritdoc cref="TryEnterUpgradeableReadLock"/>
     public UpgradableReadLockHandle EnterUpgradeableReadLock()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         EnsureCanEnterLock();
         return EnterUpgradableReadLockImpl();
     }
@@ -149,13 +171,18 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// </summary>
     public void Close()
     {
-        if (Interlocked.Exchange(ref _isClosing, true))
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        CloseImpl();
+    }
+
+    private void CloseImpl()
+    {
+        if ((InterlockedOr(ref _state, State.Closing) & State.Closing) != 0)
         {
             activeOperations.Wait();
             return;
         }
-
-        if (!activeOperations.Signal())
+        else if (!activeOperations.Signal())
         {
             activeOperations.Wait();
         }
@@ -166,8 +193,11 @@ public sealed class CountingReaderWriterLock : IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
-        Close();
-        activeOperations.Dispose();
+        if ((InterlockedOr(ref _state, State.Disposed) & State.Disposed) == 0)
+        {
+            CloseImpl();
+            activeOperations.Dispose();
+        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -210,7 +240,25 @@ public sealed class CountingReaderWriterLock : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryIncrementActiveOperations() => !Volatile.Read(ref _isClosing) && activeOperations.TryAddCount();
+    private bool TryIncrementActiveOperations()
+    {
+        return ((State)Volatile.Read(ref AsByte(ref _state)) & State.Closing) == 0
+            && activeOperations.TryAddCount();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ref byte AsByte(ref State location1) => ref Unsafe.As<State, byte>(ref location1);
+
+    private static State InterlockedOr(ref State location1, State value)
+    {
+        State currValue = (State)Volatile.Read(ref AsByte(ref location1)), prevValue;
+        do
+        {
+            (currValue, prevValue) = ((State)Interlocked.CompareExchange(ref AsByte(ref location1), (byte)(currValue | value), (byte)currValue), currValue);
+        }
+        while (prevValue != currValue);
+        return currValue;
+    }
 
     [StackTraceHidden, MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCanEnterLock()
