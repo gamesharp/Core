@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace GameSharp.Collections.Collectible;
+﻿namespace GameSharp.Collections.Collectible;
 
 internal abstract class TypeRegistry(short id) : Collections.TypeRegistry
 {

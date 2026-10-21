@@ -14,15 +14,15 @@ public abstract class Tests<T>
     [Fact]
     public void Constructor()
     {
-        using PooledList<T> items = new(DefaultCapacity);
+        using PooledList<T> items = Collections.PooledList.Empty<T>();
         Assert.Equal(0, items.Count);
     }
 
     [Fact]
     public void Add()
     {
-        PooledList<T> items = new(DefaultCapacity);
-        
+        PooledList<T> items = Collections.PooledList.Empty<T>();
+
         try
         {
             int targetCount = GetArray(ref items)!.Length + 1, i = 0;
@@ -47,13 +47,8 @@ public abstract class Tests<T>
     [Fact]
     public void RemoveAt()
     {
-        using PooledList<T> items = new(TestItems.Length);
         List<T> expectedItems = [.. TestItems];
-
-        foreach (T item in expectedItems)
-        {
-            items.Add(item);
-        }
+        using PooledList<T> items = expectedItems.ToPooledList();
 
         items.RemoveAt(items.Count - 1);
         expectedItems.RemoveAt(expectedItems.Count - 1);
@@ -72,17 +67,11 @@ public abstract class Tests<T>
     [Fact]
     public void Remove()
     {
-        PooledList<T> items = new(DefaultCapacity);
+        List<T> expectedItems = [.. TestItems];
+        PooledList<T> items = expectedItems.ToPooledList();
 
         try
         {
-            List<T> expectedItems = [.. TestItems];
-
-            foreach (T item in expectedItems)
-            {
-                items.Add(item);
-            }
-
             items.Remove(expectedItems[^1], Comparer);
             expectedItems.RemoveAt(expectedItems.Count - 1);
             Assert.SequenceEqual(in items, expectedItems, Comparer);
@@ -105,11 +94,7 @@ public abstract class Tests<T>
     [Fact]
     public void Clear()
     {
-        using PooledList<T> items = new(TestItems.Length);
-        foreach (T item in TestItems)
-        {
-            items.Add(item);
-        }
+        using PooledList<T> items = TestItems.ToPooledList();
         items.Clear();
         Assert.Equal(0, items.Count);
     }
@@ -117,7 +102,7 @@ public abstract class Tests<T>
     [Fact]
     public void Insert()
     {
-        using PooledList<T> items = new(TestItems.Length);
+        using PooledList<T> items = Collections.PooledList.Empty<T>(TestItems.Length);
         int mid = TestItems.Length / 2;
 
         foreach (T item in TestItems.AsSpan(0, mid))
@@ -136,7 +121,7 @@ public abstract class Tests<T>
     [Fact]
     public void Contains()
     {
-        PooledList<T> items = new(initialCapacity: 0);
+        PooledList<T> items = Collections.PooledList.Empty<T>(0);
         items.Add(TestItems[0]);
         Assert.True(items.Contains(TestItems[0]));
     }
@@ -144,12 +129,7 @@ public abstract class Tests<T>
     [Fact]
     public void Indexer()
     {
-        using PooledList<T> items = new(TestItems.Length);
-
-        foreach (T item in TestItems)
-        {
-            items.Add(item);
-        }
+        using PooledList<T> items = TestItems.ToPooledList();
 
         for (int i = 0; i < TestItems.Length; i++)
         {
@@ -166,7 +146,7 @@ public abstract class Tests<T>
         Assert.Throws<ObjectDisposedException>(AddUninitializedList);
         Assert.Throws<ObjectDisposedException>(RemoveAtDisposedList);
 
-        PooledList<T> items = new(initialCapacity: 0);
+        PooledList<T> items = Collections.PooledList.Empty<T>(initialCapacity: 0);
         items.Dispose();
         Assert.Null(GetArray(ref items));
     }
@@ -179,31 +159,23 @@ public abstract class Tests<T>
 
     private void RemoveAtDisposedList()
     {
-        PooledList<T> items = new(initialCapacity: 0);
+        PooledList<T> items = Collections.PooledList.Empty<T>(initialCapacity: 0);
         items.Dispose();
         items.RemoveAt(0);
     }
 
     private void AccessNegativeIndex()
     {
-        using PooledList<T> items = new(TestItems.Length);
-        foreach (T item in TestItems)
-        {
-            items.Add(item);
-        }
+        using PooledList<T> items = TestItems.ToPooledList();
         _ = items[-1];
     }
 
     private void AccessIndexOutOfRange()
     {
-        using PooledList<T> items = new(TestItems.Length);
-        foreach (T item in TestItems)
-        {
-            items.Add(item);
-        }
+        using PooledList<T> items = TestItems.ToPooledList();
         _ = items[TestItems.Length];
     }
 
-    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_array")]
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "array")]
     private static extern ref Array? GetArray(scoped ref PooledList<T> list);
 }

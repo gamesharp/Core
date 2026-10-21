@@ -1,7 +1,5 @@
-﻿using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace GameSharp.Collections;
 
@@ -20,14 +18,11 @@ public static class PooledListExtensions
     /// </remarks>
     /// <param name="tasks">The list of tasks to wait for.</param>
     /// <returns>A task that represents the completion of all the tasks.</returns>
+    [Obsolete("This method is obsolete. Use 'PooledList.WhenAll' instead.")]
     public static Task WhenAll(this scoped ref PooledList<Task> tasks)
     {
         ObjectDisposedException.ThrowIf(tasks.array is null, typeof(PooledList<Task>));
-        Task waitAndReturn = WaitAndReturnAsync(Unsafe.As<object[]>(tasks.array), tasks.count);
-        tasks.array = null;
-        tasks.data = ref Unsafe.NullRef<Task?>();
-        tasks.count = 0;
-        return waitAndReturn;
+        return PooledList.WhenAll(ref tasks);
     }
 
     /// <inheritdoc cref="Contains{T}(ref PooledList{T}, T, IEqualityComparer{T})"/>
@@ -109,15 +104,5 @@ public static class PooledListExtensions
     {
         ReadOnlySpan<T> span = list.AsSpan();
         return span.IndexOf(item, comparer);
-    }
-
-    private static async Task WaitAndReturnAsync(object[] array, int count)
-    {
-        ref Task data = ref Unsafe.As<object, Task>(ref MemoryMarshal.GetArrayDataReference(array));
-        ReadOnlySpan<Task> tasks = MemoryMarshal.CreateReadOnlySpan(ref data, count);
-        Task wait = Task.WhenAll(tasks);
-        await wait.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        ArrayPool<object>.Shared.Return(array, clearArray: true);
-        wait.GetAwaiter().GetResult();
     }
 }
