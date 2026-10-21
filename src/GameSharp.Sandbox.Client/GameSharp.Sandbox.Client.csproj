@@ -8,6 +8,7 @@
     <IsAotCompatible>true</IsAotCompatible>
     <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
     <EnableStreamJsonRpcInterceptors>true</EnableStreamJsonRpcInterceptors>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
