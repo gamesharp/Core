@@ -15,7 +15,7 @@ public sealed class ConcurrentTypeLookupTests : Tests<ConcurrentTypeLookup, Conc
     {
         HashSet<KeyValuePair<Type, object>> expected = AllKeyValuePairs;
 
-        ConcurrentTypeLookup.Enumerator enumerator = inital.GetEnumerator();
+        using ConcurrentTypeLookup.Enumerator enumerator = inital.GetEnumerator();
         while (enumerator.MoveNext())
         {
             Assert.Removed(expected, enumerator.Current);
