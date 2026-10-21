@@ -137,4 +137,7 @@ public static class UnsafeSpanExtensions
         byteOffset = (int)Unsafe.ByteOffset(in data, in result);
         return ref result;
     }
+
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_length")]
+    internal static extern ref int GetLengthRef<T>(this ref Span<T> span);
 }

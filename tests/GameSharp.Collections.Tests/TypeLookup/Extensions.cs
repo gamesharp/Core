@@ -11,7 +11,7 @@ internal static class Extensions
     {
         [StackTraceHidden]
         public static void Single<TLookup, TItem>(TLookup result, TItem item)
-            where TLookup : ReadOnlyTypeLookup
+            where TLookup : IReadOnlyTypeLookup
             where TItem : class
         {
             Assert.Single(result);
@@ -20,22 +20,8 @@ internal static class Extensions
         }
 
         [StackTraceHidden]
-        public static void Single<TItem>(ReadOnlyTypeLookup.Query<TItem> query, TItem expected) where TItem : class
-        {
-            TItem[] items = [.. query];
-            Assert.Single(items, expected);
-        }
-
-        [StackTraceHidden]
-        public static void Single(ReadOnlyTypeLookup.Query query, object expected)
-        {
-            object[] items = [.. query];
-            Assert.Single(items, expected);
-        }
-
-        [StackTraceHidden]
         public static void GetOneThrowsForMissingItems<TLookup, TItem>(TLookup lookup)
-            where TLookup : ReadOnlyTypeLookup
+            where TLookup : IReadOnlyTypeLookup
             where TItem : class
         {
             Assert.Throws<ArgumentException>(lookup.GetOne<TItem>);
@@ -47,7 +33,7 @@ internal static class Extensions
 
         [StackTraceHidden]
         public static void TryGetOneReturnsFalseForMissingItems<TLookup, TItem>(TLookup lookup)
-            where TLookup : ReadOnlyTypeLookup
+            where TLookup : IReadOnlyTypeLookup
             where TItem : class
         {
             Assert.False(lookup.TryGetOne(out TItem? _));
@@ -58,7 +44,7 @@ internal static class Extensions
         }
 
         [StackTraceHidden]
-        public static void SequenceEqualsUnordered<TItem>(HashSet<object> expected, ReadOnlyTypeLookup.Query<TItem> actual) where TItem : class
+        public static void SequenceEqualsUnordered<TItem>(HashSet<object> expected, IEnumerable<object> actual) where TItem : class
         {
             foreach (object item in actual)
             {
@@ -69,7 +55,7 @@ internal static class Extensions
         }
 
         [StackTraceHidden]
-        public static void SequenceEqualsUnordered(HashSet<object> expected, ReadOnlyTypeLookup.Query actual)
+        public static void SequenceEqualsUnordered(HashSet<object> expected, IEnumerable<object> actual)
         {
             foreach (object item in actual)
             {
