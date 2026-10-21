@@ -8,34 +8,25 @@ namespace GameSharp.Collections;
 public ref struct UpgradedReadLockHandle : IDisposable
 {
     private readonly ReaderWriterLockSlim _lock;
-    internal int opCount;
+    private ref int _opCount;
 
     /// <summary>
     /// Gets a value indicating whether the write lock is currently held by this handle.
     /// </summary>
-    public readonly bool IsHeld => opCount > 0;
+    public readonly bool IsHeld => _opCount > 0;
 
-    internal UpgradedReadLockHandle(ReaderWriterLockSlim rwLock)
+    internal UpgradedReadLockHandle(ReaderWriterLockSlim rwLock, ref int opCount)
     {
+        _opCount = ref opCount;
         _lock = rwLock;
-        opCount = 0;
     }
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        if (--opCount == 0)
+        if (--_opCount == 0)
         {
-            _lock.ExitWriteLock();
-        }
-    }
-
-    internal void Release()
-    {
-        if (IsHeld)
-        {
-            opCount = 0;
             _lock.ExitWriteLock();
         }
     }

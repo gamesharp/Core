@@ -1,6 +1,7 @@
 ﻿using GameSharp.Collections.Immutable;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 
 namespace GameSharp.Collections.Concurrent;
@@ -247,7 +248,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
             set => itemCount = value;
         }
 
-        public bool WasModified { readonly get; private set; }
+        public bool WasMutated { get; private set; }
 
         public LockedArrayBuilder(ArrayFactory arrayFactory, ref IntegerLookup[] lookups, ref object[] items, UpgradableReadLockHandle readHandle)
         {
@@ -257,20 +258,37 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
             _readHandle = readHandle;
         }
 
-        public void Dispose() => _readHandle.Dispose();
+        public void Dispose()
+        {
+            if (WasMutated)
+            {
+                WasMutated = false;
+                _readHandle.rwLock.ExitWriteLock();
+            }
+
+            _readHandle.Dispose();
+        }
 
         void IArrayBuilder<IntegerLookup>.Mutate()
         {
-            _readHandle.Upgrade();
+            if (!WasMutated)
+            {
+                _readHandle.rwLock.EnterWriteLock();
+                WasMutated = true;
+            }
+
             _arrayFactory.SetCount(ref _lookups, lookupCount);
-            WasModified = true;
         }
 
         void IArrayBuilder<object>.Mutate()
         {
-            _readHandle.Upgrade();
+            if (!WasMutated)
+            {
+                _readHandle.rwLock.EnterWriteLock();
+                WasMutated = true;
+            }
+
             _arrayFactory.SetCount(ref _items, itemCount);
-            WasModified = true;
         }
     }
 
@@ -299,7 +317,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     {
         get
         {
-            if (syncRoot.EnterReadLock() is { IsHeld: true } handle)
+            if (syncRoot.TryEnterReadLock() is { IsHeld: true } handle)
             {
                 return GetCountLocked(handle);
             }
@@ -313,7 +331,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            if (syncRoot.EnterReadLock() is { IsHeld: true } handle)
+            if (syncRoot.TryEnterReadLock() is { IsHeld: true } handle)
             {
                 return GetClusterCountLocked(handle);
             }
@@ -354,7 +372,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
-        if (syncRoot.EnterUpgradeableReadLock() is { IsHeld: true } handle)
+        if (syncRoot.TryEnterUpgradeableReadLock() is { IsHeld: true } handle)
         {
             ClearLocked(handle);
         }
@@ -442,7 +460,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         }
     }
 
-    private void ClearLocked(UpgradableReadLockHandle handle)
+    private void ClearLocked(UpgradableReadLockHandle readHandle)
     {
         try
         {
@@ -451,14 +469,14 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
                 return;
             }
 
-            handle.Upgrade();
+            using UpgradedReadLockHandle writeHandle = readHandle.Upgrade();
             Array.Clear(lookup.items, 0, lookup.itemCount);
             lookup.itemCount = 0;
             lookup.lookupCount = 0;
         }
         finally
         {
-            handle.Dispose();
+            readHandle.Dispose();
         }
     }
 
@@ -473,7 +491,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         try
         {
             TypeLookup.Add(ref builder, ref builder, item, typeInfo);
-            return builder.WasModified;
+            return builder.WasMutated;
         }
         finally
         {
@@ -492,7 +510,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         try
         {
             TypeLookup.Remove(ref builder, ref builder, item, typeInfo);
-            return builder.WasModified;
+            return builder.WasMutated;
         }
         finally
         {
@@ -512,7 +530,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
         {
             Span<IntegerLookup> lookups = lookup.lookups.AsSpan(0, lookup.lookupCount);
             TypeLookup.Replace(lookups, ref builder, existingItem, newItem, typeInfo);
-            return builder.WasModified;
+            return builder.WasMutated;
         }
         finally
         {
@@ -522,7 +540,7 @@ public sealed class ConcurrentTypeLookup : MutableTypeLookup, ITypeLookup, IDisp
 
     private ReadLockHandle GetState(out ReadOnlySpan<IntegerLookup> lookups, out ReadOnlySpan<object> items)
     {
-        ReadLockHandle handle = syncRoot.EnterReadLock();
+        ReadLockHandle handle = syncRoot.TryEnterReadLock();
         try
         {
             ImmutableTypeLookup lookup = Volatile.Read(ref this.lookup);

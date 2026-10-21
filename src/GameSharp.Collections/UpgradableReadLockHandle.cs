@@ -8,9 +8,9 @@ namespace GameSharp.Collections;
 /// </summary>
 public ref struct UpgradableReadLockHandle : IDisposable
 {
-    private readonly ReaderWriterLockSlim _lock;
+    internal readonly ReaderWriterLockSlim rwLock;
     private readonly CountdownEvent _activeOperations;
-    private UpgradedReadLockHandle _writeHandle;
+    private int _opCount;
 
     /// <summary>
     /// Gets a value indicating whether the upgradable read lock is currently held by this handle.
@@ -19,9 +19,8 @@ public ref struct UpgradableReadLockHandle : IDisposable
 
     internal UpgradableReadLockHandle(ReaderWriterLockSlim rwLock, CountdownEvent activeOperations)
     {
-        _lock = rwLock;
+        this.rwLock = rwLock;
         _activeOperations = activeOperations;
-        _writeHandle = new UpgradedReadLockHandle(rwLock);
         IsHeld = true;
     }
 
@@ -30,26 +29,24 @@ public ref struct UpgradableReadLockHandle : IDisposable
     /// </summary>
     /// <returns>An <see cref="UpgradedReadLockHandle"/> that can be disposed to release the write lock.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining), UnscopedRef]
-    public ref UpgradedReadLockHandle Upgrade()
+    public UpgradedReadLockHandle Upgrade()
     {
-        if (_writeHandle.opCount++ == 0)
+        if (_opCount++ == 0)
         {
-            _lock.EnterWriteLock();
+            rwLock.EnterWriteLock();
         }
         
-        return ref _writeHandle;
+        return new UpgradedReadLockHandle(rwLock, ref _opCount);
     }
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        _writeHandle.Release();
-
         if (IsHeld)
         {
             IsHeld = false;
-            CountingReaderWriterLock.ReleaseUpgradeableReadLock(_lock, _activeOperations);
+            CountingReaderWriterLock.ReleaseUpgradeableReadLock(rwLock, _activeOperations);
         }
     }
 }
