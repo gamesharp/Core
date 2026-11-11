@@ -1,388 +1,169 @@
-﻿using GameSharp.Generic;
-using System;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
-#if NET9_0_OR_GREATER
-using Lock = System.Threading.Lock;
-#else
-using Lock = System.Object;
-#endif
+using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 
 namespace GameSharp;
 
-/// <summary>
-/// Provides an abstract base class for objects with a manageable asynchronous lifetime.
-/// </summary>
-/// <inheritdoc/>
-public abstract class AsynchronousLifecycle : Lifecycle, IDisposable, IAsyncDisposable
+public abstract class AsynchronousLifecycle : IDisposable, IAsyncDisposable
 {
-    private interface IStageFactory<T> where T : ILifetimeStage
+    [StructLayout(LayoutKind.Explicit)]
+    private struct State
     {
-        T Create();
-    }
+        [FieldOffset(0)]
+        public ushort value;
 
-    private readonly struct IntermediateStageFactory : IStageFactory<IntermediateStage>
-    {
-        public required CancellationToken CancellationToken { get; init; }
-        public required Func<Task> TaskFactory { get; init; }
+        [FieldOffset(0)]
+        public byte stage;
+
+        [FieldOffset(1)]
+        public bool disposed;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IntermediateStage Create() => new(TaskFactory, CancellationToken);
+        public static explicit operator State(ushort value)
+        {
+            return Unsafe.BitCast<ushort, State>(value);
+        }
     }
 
-    private readonly struct StoppingStageFactory : IStageFactory<StoppingStage>
+    private readonly record struct DispatchContext
     {
-        public required AsynchronousLifecycle Lifecycle { get; init; }
+        public required Task Task { get; init; }
+        public required Action<CancellationToken> Action { get; init; }
+        public required CancellationTokenSource Cts { get; init; }
+        public CancellationTokenRegistration CancellationRegistration1 { get; init; }
+        public CancellationTokenRegistration CancellationRegistration2 { get; init; }
+    }
 
+    private sealed class DispatchContextPool : ObjectPool<StrongBox<DispatchContext>>
+    {
+        public static DispatchContextPool Shared { get; } = new();
+
+        protected override StrongBox<DispatchContext> Create() => new();
+
+        protected override bool TryReset([NotNullWhen(true)] StrongBox<DispatchContext>? item)
+        {
+            if (item is null)
+            {
+                return false;
+            }
+
+            item.Value = default;
+            return true;
+        }
+    }
+
+    private const int StartupStage = 1;
+    private const int ShutdownStage = 2;
+
+    public Task Startup { get; } = FromInternalCtor();
+    public Task Shutdown { get; } = FromInternalCtor();
+
+    private State _state;
+    protected bool IsDisposed
+    {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public StoppingStage Create() => new(Lifecycle);
+        get => ((State)Volatile.Read(ref _state.value)).disposed;
     }
 
-#if NET9_0_OR_GREATER
-    [InlineArray(2)]
-    private struct Task2
-    {
-        private Task _value;
-    }
-#endif
+    private readonly CancellationTokenSource _cts = new();
+    public CancellationToken StoppingToken => _cts.Token;
 
-    private abstract class Stage(CancellationToken cancellationToken) : AsynchronousLifetimeStage
-    {
-        protected override CancellationToken CancellationToken { get; } = cancellationToken;
-#if NET8_0_OR_GREATER
-        protected override ConfigureAwaitOptions ConfigureAwaitOptions => ConfigureAwaitOptions.None;
-#else
-        protected override bool ContinueOnCapturedContext => false;
-#endif
-    }
-
-    private sealed class IntermediateStage(Func<Task> taskFactory, CancellationToken cancellationToken) : Stage(cancellationToken)
-    {
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            Task prev = base.ExecuteAsync(cancellationToken);
-            await prev.ConfigureAwait(false);
-
-            Task curr = taskFactory();
-            await curr.ConfigureAwait(false);
-        }
-    }
-
-    private sealed class StartingStage(AsynchronousLifecycle lifecycle, CancellationToken cancellationToken) : 
-        AsynchronousLifetimeStage<CancellationToken>
-    {
-        protected override CancellationToken CancellationToken { get; } = cancellationToken;
-#if NET8_0_OR_GREATER
-        protected override ConfigureAwaitOptions ConfigureAwaitOptions => ConfigureAwaitOptions.None;
-#else
-        protected override bool ContinueOnCapturedContext => false;
-#endif
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken1, CancellationToken cancellationToken2)
-        {
-            CancellationTokenSource cts = CancellationTokenSourcePool.Shared.Get();
-            cancellationToken1.Register(cts.Cancel);
-            cancellationToken2.Register(cts.Cancel);
-
-            Task curr, prev = base.ExecuteAsync(CancellationToken.None, cts.Token);
-            await prev.SuppressThrowing();
-            if (prev.IsCompletedSuccessfully)
-            {
-                curr = lifecycle.StartAsync(cts.Token);
-                await curr.SuppressThrowing();
-            }
-            else
-            {
-                curr = prev;
-            }
-            CancellationTokenSourcePool.Shared.Return(cts);
-            curr.GetAwaiter().GetResult();
-        }
-    }
-
-    private sealed class StoppingStage(AsynchronousLifecycle lifecycle) : 
-        AsynchronousLifetimeStage<CancellationToken>
-    {
-#if NET8_0_OR_GREATER
-        protected override ConfigureAwaitOptions ConfigureAwaitOptions => ConfigureAwaitOptions.None;
-#else
-        protected override bool ContinueOnCapturedContext => false;
-#endif
-
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken1, CancellationToken cancellationToken2)
-        {
-            Task main = base.ExecuteAsync(CancellationToken.None, cancellationToken2);
-            await main.SuppressThrowing();
-#if NET8_0_OR_GREATER
-            Task2 tasks = default;
-            tasks[0] = main;
-            tasks[1] = lifecycle.StopAsync(cancellationToken2);
-            await Task.WhenAll(tasks);
-#else
-            await Task.WhenAll(main, lifecycle.StopAsync(cancellationToken2));
-#endif
-        }
-    }
-
-    private readonly CancellationTokenSource _stoppingCts;
-    private CancellationTokenSource? _disposingCts;
-
-    private Lock? _syncRoot;
-
-    private readonly StartingStage _startup;
-    /// <summary>
-    /// Gets information about the startup stage of the asynchronous lifetime.
-    /// </summary>
-    public LifetimeStageInfo Startup => _startup.Info;
-
-    private IntermediateStage? _main;
-    /// <summary>
-    /// Gets information about the main stage of the asynchronous lifetime.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
-    protected LifetimeStageInfo Main
-    {
-        get
-        {
-#if PRESERVE_STACK_TRACE
-            if (IsDisposed)
-            {
-                throw new ObjectDisposedException(GetType().FullName);
-            }
-#else
-            ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-            return GetOrInitMain().Info;
-        }
-    }
-
-    private StoppingStage? _shutdown;
-    /// <summary>
-    /// Gets information about the stopping stage of the asynchronous lifetime.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
-    public LifetimeStageInfo Shutdown
-    {
-        get
-        {
-#if PRESERVE_STACK_TRACE
-            if (IsDisposed)
-            {
-                throw new ObjectDisposedException(GetType().FullName);
-            }
-#else
-            ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-            return GetOrInitShutdown().Info;
-        }
-    }
-
-    private Flag _disposed;
-    /// <summary>
-    /// Gets a value indicating whether the instance has been disposed.
-    /// </summary>
-    protected bool IsDisposed => FlagInterlocked.Read(ref _disposed);
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AsynchronousLifecycle"/> class.
-    /// </summary>
-    public AsynchronousLifecycle()
-    {
-        _stoppingCts = new CancellationTokenSource();
-        _startup = new StartingStage(this, _stoppingCts.Token);
-    }
-
-    /// <summary>
-    /// Gets a <see cref="CancellationToken"/> that can be used to request cancellation of the asynchronous operation.
-    /// </summary>
-    public CancellationToken StoppingToken => _stoppingCts.Token;
-
-    /// <summary>
-    /// Starts the <see cref="AsynchronousLifecycle"/> if it has not already been started.
-    /// </summary>
-    /// <returns><see langword="true"/> if the lifetime was started; otherwise, <see langword="false"/>.</returns>
-    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryStart(CancellationToken cancellationToken = default)
-    {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-        return TryComplete(_startup, cancellationToken);
-    }
-
-    /// <returns/>
-    /// <inheritdoc cref="StartAsync(CancellationToken)"/>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Start(CancellationToken cancellationToken = default)
-    {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-        Complete(_startup, cancellationToken);
-    }
-
-    /// <summary>
-    /// Starts the <see cref="AsynchronousLifecycle"/>.
-    /// </summary>
-    /// <inheritdoc cref="TryStartAsync(CancellationToken)"/>
-    /// <exception cref="InvalidOperationException">Thrown if the lifetime has already been started.</exception>
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
+        if (!TryTransitionTo(StartupStage))
         {
-            throw new ObjectDisposedException(GetType().FullName);
+            return Startup.WaitAsync(cancellationToken);
         }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
 
-        Complete(_startup, cancellationToken);
-        return _startup.Task!;
+        if (cancellationToken.IsCancellationRequested)
+        {
+            OperationCanceledException ex = new(cancellationToken);
+            TrySetException(Startup, ex);
+            return Startup;
+        }
+
+        DispatchStage(Startup, OnStartingAsync, cancellationToken);
+
+        return Startup;
     }
 
-    /// <summary>
-    /// Starts the <see cref="AsynchronousLifecycle"/> if it has not already been started.
-    /// </summary>
-    /// <remarks>The lifetime will run until interrupted.</remarks>
-    /// <param name="cancellationToken">Used to abort lifetime start.</param>
-    /// <returns>A task that will be completed when the lifetime starts.</returns>
-    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
-    public async ValueTask<bool> TryStartAsync(CancellationToken cancellationToken = default)
+    public bool TryStart(CancellationToken cancellationToken = default)
     {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
+        if (!TryTransitionTo(StartupStage))
         {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-
-        if (TryComplete(_startup, cancellationToken))
-        {
-            Task task = _startup.Task!;
-            await task.SuppressThrowing();
-            return task.IsCompletedSuccessfully;
+            return false;
         }
 
-        return false;
+        if (cancellationToken.IsCancellationRequested)
+        {
+            SetCancelled(Startup, cancellationToken);
+        }
+        else
+        {
+            DispatchStage(Startup, OnStartingAsync, cancellationToken);
+        }
+        
+        return true;
     }
 
-    /// <summary>
-    /// Stops the <see cref="AsynchronousLifecycle"/> if it has not already been stopped.
-    /// </summary>
-    /// <returns><see langword="true"/> if the lifecycle was stopped; otherwise, <see langword="false"/>.</returns>
-    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryStop(CancellationToken cancellationToken = default)
-    {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-        return TryComplete(GetOrInitShutdown(), cancellationToken);
-    }
-
-    /// <returns/>
-    /// <inheritdoc cref="StopAsync(CancellationToken)"/>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Stop(CancellationToken cancellationToken = default)
-    {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-        Complete(GetOrInitShutdown(), GetOrInitLinkedToken(ref _disposingCts, cancellationToken));
-    }
-
-    /// <summary>
-    /// Stops the <see cref="AsynchronousLifecycle"/>.
-    /// </summary>
-    /// <inheritdoc cref="TryStopAsync(CancellationToken)"/>
-    /// <exception cref="InvalidOperationException">Thrown if the lifecycle has already been stopped.</exception>
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
+        if (!TryTransitionTo(ShutdownStage))
         {
-            throw new ObjectDisposedException(GetType().FullName);
+            return Shutdown.WaitAsync(cancellationToken);
         }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-        StoppingStage shutdown = GetOrInitShutdown();
-        Complete(shutdown, GetOrInitLinkedToken(ref _disposingCts, cancellationToken));
-        return shutdown.Task!;
+
+        DispatchStage(Shutdown, OnStoppingAsync, cancellationToken);
+        return Shutdown;
     }
 
-    /// <summary>
-    /// Stops the <see cref="AsynchronousLifecycle"/> if it has not already been stopped.
-    /// </summary>
-    /// <param name="cancellationToken">Used to indicate when stop should no longer be graceful.</param>
-    /// <returns>A task that will be completed when the lifecycle has stopped.</returns>
-    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
-    public async ValueTask<bool> TryStopAsync(CancellationToken cancellationToken = default)
+    public bool TryStop(CancellationToken cancellationToken = default)
     {
-#if PRESERVE_STACK_TRACE
-        if (IsDisposed)
+        if (!TryTransitionTo(ShutdownStage))
         {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-#else
-        ThrowHelpers.ThrowIfDisposed(IsDisposed, this);
-#endif
-
-        StoppingStage shutdown = GetOrInitShutdown();
-
-        if (TryComplete(shutdown, GetOrInitLinkedToken(ref _disposingCts, cancellationToken)))
-        {
-            Task task = shutdown.Task!;
-            await task.SuppressThrowing();
-            return task.IsCompletedSuccessfully;
+            return false;
         }
 
-        return false;
+        DispatchStage(Shutdown, OnStoppingAsync, cancellationToken);
+        return true;
     }
 
-    /// <inheritdoc/>
+    private void DispatchStage(Task task, Action<CancellationToken> action, CancellationToken cancellationToken)
+    {
+        CancellationTokenSource cts = CancellationTokenSourcePool.Shared.Get();
+        StrongBox<DispatchContext> boxedCtx = DispatchContextPool.Shared.Get();
+        boxedCtx.Value = new DispatchContext
+        {
+            Task = task,
+            Action = action,
+            Cts = cts,
+            CancellationRegistration1 = Link(cts, StoppingToken),
+            CancellationRegistration2 = Link(cts, cancellationToken)
+        };
+
+        ThreadPool.QueueUserWorkItem(CompleteStage, boxedCtx, preferLocal: false);
+    }
+
     public void Dispose()
     {
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
 
-    /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        if (FlagInterlocked.Exchange(ref _disposed, true))
+        if (!TryDispose())
         {
             return;
         }
 
+        Task stop = StopAsync();
+        await stop.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
         try
         {
-            ValueTask release = ReleaseManagedResourcesAsync();
-            await release.ConfigureAwait(false);
+            OnDisposing();
         }
         finally
         {
@@ -391,176 +172,152 @@ public abstract class AsynchronousLifecycle : Lifecycle, IDisposable, IAsyncDisp
         }
     }
 
-    /// <summary>
-    /// Called when the starting stage of the lifetime is reached.
-    /// </summary>
-    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to request cancellation of the starting operation.</param>
-    /// <returns>A task that represents the asynchronous starting operation.</returns>
-    protected virtual Task OnStartingAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Called when the main stage of the lifetime is reached.
-    /// </summary>
-    /// <returns>A task that represents the main asynchronous operation.</returns>
-    protected virtual async Task ExecuteAsync()
-    {
-        await Shutdown;
-    }
-
-    /// <summary>
-    /// Attempts a graceful shutdown of the lifetime.
-    /// </summary>
-    /// <param name="cancellationToken">Used to indicate when stop should no longer be graceful.</param>
-    /// <returns>A task that completes when the <see cref="AsynchronousLifecycle"/> stops.</returns>
-    protected virtual async Task OnStoppingAsync(CancellationToken cancellationToken)
-    {
-        Task cancel = _stoppingCts.CancelAsync(cancellationToken);
-        await cancel.SuppressThrowing();
-    }
-
-    /// <summary>
-    /// Completes the shutdown stage, waits for shutdown work to finish, and releases managed synchronization and
-    /// cancellation resources.
-    /// </summary>
-    protected virtual void ReleaseManagedResources()
-    {
-        StoppingStage shutdown = GetOrInitShutdown();
-        if (TryComplete(shutdown, new CancellationToken(canceled: true)))
-        {
-            WaitSyncSwallowing(shutdown.Task!);
-        }
-        else if (shutdown.IsCompleted)
-        {
-            CancellationTokenSourcePool.Shared.Return(Volatile.Read(ref _disposingCts)!);
-        }
-        else
-        {
-            CancelAndDisposeSwallowing(Volatile.Read(ref _disposingCts)!);
-            WaitSyncSwallowing(shutdown.Task!);
-        }
-
-        LockPool.Shared.InterlockedReturn(ref _syncRoot);
-
-        _stoppingCts.Dispose();
-    }
-
-    /// <returns>A task that completes when the shutdown stage is complete and managed resources have been released.</returns>
-    /// <inheritdoc cref="ReleaseManagedResources"/>
-    protected virtual async ValueTask ReleaseManagedResourcesAsync()
-    {
-        StoppingStage shutdown = GetOrInitShutdown();
-        if (TryComplete(shutdown, new CancellationToken(canceled: true)))
-        {
-            await shutdown.Task!.SuppressThrowing();
-        }
-        else if (shutdown.IsCompleted)
-        {
-            CancellationTokenSourcePool.Shared.Return(Volatile.Read(ref _disposingCts)!);
-        }
-        else
-        {
-#if NET8_0_OR_GREATER
-            Task cancel = Volatile.Read(ref _disposingCts)!.CancelAsync();
-#else
-            Task cancel = Task.Run(Volatile.Read(ref _disposingCts)!.Cancel);
-#endif
-            await cancel.SuppressThrowing();
-            await shutdown.Task!.SuppressThrowing();
-        }
-
-        LockPool.Shared.InterlockedReturn(ref _syncRoot);
-
-        _stoppingCts.Dispose();
-    }
-
-    /// <summary>
-    /// Disposes the resources used by the <see cref="AsynchronousLifecycle"/> instance.
-    /// </summary>
-    /// <param name="disposing"><see langword="true"/> to dispose managed resources; <see langword="false"/> to dispose unmanaged resources only.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (FlagInterlocked.Exchange(ref _disposed, true))
+        if (!disposing || !TryDispose())
         {
             return;
         }
 
-        if (disposing)
+        Task stop = StopAsync();
+
+        if (stop.IsCompleted)
         {
-            ReleaseManagedResources();
+            OnDisposing();
+            return;
         }
+
+        ConfiguredTaskAwaitable awaitable = stop.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        ConfiguredTaskAwaitable.ConfiguredTaskAwaiter awaiter = awaitable.GetAwaiter();
+        awaiter.OnCompleted(OnDisposing);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static CancellationToken GetOrInitLinkedToken(ref CancellationTokenSource? location1, CancellationToken cancellationToken)
+    protected abstract void OnStartingAsync(CancellationToken cancellationToken);
+    
+    protected virtual void OnStoppingAsync(CancellationToken cancellationToken)
     {
-        CancellationTokenSource cts = CancellationTokenSourcePool.Shared.InterlockedInit(ref location1);
-        cancellationToken.Register(cts.Cancel);
-        return cts.Token;
+        _cts.Cancel();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void WaitSyncSwallowing(Task task)
+    protected virtual void OnDisposing()
     {
-        task.SuppressThrowing().GetAwaiter().GetResult();
+        _cts.Dispose();
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void CancelAndDisposeSwallowing(CancellationTokenSource cts)
+    [SkipLocalsInit]
+    private bool TryDispose()
     {
+        State currState = (State)Volatile.Read(ref _state.value), prevState;
+
+        do
+        {
+            if (currState.disposed)
+            {
+                return false;
+            }
+
+            State newState = currState with { disposed = true };
+            (currState, prevState) = ((State)Interlocked.CompareExchange(ref _state.value, newState.value, currState.value), currState);
+        }
+        while (currState.value != prevState.value);
+
+        return true;
+    }
+
+    private static CancellationTokenRegistration Link(CancellationTokenSource cts, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.CanBeCanceled)
+        {
+            return cancellationToken.UnsafeRegister(
+                static state => Unsafe.As<CancellationTokenSource>(state!).Cancel(),
+                cts);
+        }
+
+        return default;
+    }
+
+    private static void CompleteStage(StrongBox<DispatchContext> boxedCtx)
+    {
+        DispatchContext ctx = boxedCtx.Value;
         try
         {
-            cts.Cancel();
+            CancellationToken cancellationToken = ctx.Cts.Token;
+            cancellationToken.ThrowIfCancellationRequested();
+            ctx.Action(cancellationToken);
+            TrySetResult(ctx.Task);
         }
-        catch (AggregateException) { }
+        catch (OperationCanceledException ex)
+        {
+            TrySetCanceled(ctx.Task, ex.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            ExceptionDispatchInfo dispatchInfo = ExceptionDispatchInfo.Capture(ex);
+            TrySetException(ctx.Task, dispatchInfo);
+        }
         finally
         {
-            cts.Dispose();
+            ctx.CancellationRegistration1.Dispose();
+            ctx.CancellationRegistration2.Dispose();
+            CancellationTokenSourcePool.Shared.Return(ctx.Cts);
+            DispatchContextPool.Shared.Return(boxedCtx);
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private IntermediateStage GetOrInitMain()
+    private static Task FromInternalCtor()
     {
-        if (Volatile.Read(ref _main) is not { } main)
-        {
-            IntermediateStageFactory factory = new() { CancellationToken = StoppingToken, TaskFactory = ExecuteAsync };
-            main = InitStage(ref _main, in factory, ref _syncRoot);
-        }
-
-        return main;
+        object obj = RuntimeHelpers.GetUninitializedObject(typeof(Task));
+        Task task = Unsafe.As<Task>(obj);
+        InternalCtor(task);
+        return task;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private StoppingStage GetOrInitShutdown()
+    private static void SetCancelled(Task task, CancellationToken cancellationToken)
     {
-        if (Volatile.Read(ref _shutdown) is not { } shutdown)
+        if (TrySetCanceled(task, cancellationToken) || task.IsCompleted)
         {
-            StoppingStageFactory factory = new() { Lifecycle = this };
-            shutdown = InitStage(ref _shutdown, factory, ref _syncRoot);
+            return;
         }
 
-        return shutdown;
+        SpinWait spinner = default;
+
+        do
+        {
+            spinner.SpinOnce();
+        }
+        while (!task.IsCompleted);
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static TStage InitStage<TStage, TFactory>(ref TStage? stage, in TFactory factory, ref Lock? syncRoot)
-        where TStage : class, ILifetimeStage
-        where TFactory : struct, IStageFactory<TStage>
+    [SkipLocalsInit]
+    private bool TryTransitionTo(byte newStage)
     {
-        lock (LockPool.Shared.InterlockedInit(ref syncRoot))
-        {
-            stage = Volatile.Read(ref stage);
+        State currState = (State)Volatile.Read(ref _state.value), prevState;
 
-            if (stage is null)
+        do
+        {
+            ObjectDisposedException.ThrowIf(currState.disposed, this);
+            if (currState.stage >= newStage)
             {
-                stage = factory.Create();
-                Volatile.Write(ref stage, stage);
+                return false;
             }
-        }
 
-        return stage;
+            State newState = currState with { stage = newStage };
+            (currState, prevState) = ((State)Interlocked.CompareExchange(ref _state.value, newState.value, currState.value), currState);
+        }
+        while (currState.value != prevState.value);
+
+        return true;
     }
+
+    [UnsafeAccessor(UnsafeAccessorKind.Constructor, Name = ".ctor")]
+    private extern static void InternalCtor(Task task);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "TrySetResult")]
+    private extern static bool TrySetResult(Task task);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "TrySetException")]
+    private extern static bool TrySetException(Task task, object exceptionObject /* Exception, ExceptionDispatchInfo or IEnumerable<Exception> */);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "TrySetCanceled")]
+    private extern static bool TrySetCanceled(Task task, CancellationToken tokenToRecord);
 }
