@@ -34,13 +34,14 @@ public abstract class ObjectPool<TItem> where TItem : class
 
     public void Return(TItem? item)
     {
-        if (TryReset(item) && Interlocked.CompareExchange(ref _fastItem, item, null) is { })
+        if (!TryReset(item))
+        {
+            Discard(item);
+        }
+        else if (Interlocked.CompareExchange(ref _fastItem, item, null) is { })
         {
             ReturnToArray(item);
-            return;
         }
-
-        Discard(item);
     }
 
     protected abstract TItem Create();
