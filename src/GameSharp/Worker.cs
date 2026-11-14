@@ -34,17 +34,20 @@ public abstract partial class Worker : AsynchronousLifecycle
         _workItems = [workItems, syncCtxWorkItems, taskSchedulerWorkItems];
     }
 
-    override protected void OnStartingAsync(CancellationToken cancellationToken)
+    /// <inheritdoc/>
+    override protected Task OnStartingAsync(CancellationToken cancellationToken)
     {
         Thread.Start();
+        return Task.CompletedTask;
     }
 
-    protected override void OnStoppingAsync(CancellationToken cancellationToken)
+    /// <inheritdoc/>
+    protected override async Task OnStoppingAsync(CancellationToken cancellationToken)
     {
-        base.OnStoppingAsync(cancellationToken);
         Thread.Join();
     }
 
+    /// <inheritdoc/>
     protected override void OnDisposing()
     {
         base.OnDisposing();
