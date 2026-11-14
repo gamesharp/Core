@@ -11,6 +11,7 @@ public abstract partial class Worker : AsynchronousLifecycle
     protected internal abstract Thread Thread { get; }
     protected virtual ILogger Logger => NullLogger.Instance;
     private BlockingCollection<EnqueuedWorkItem>[] _workItems;
+    private readonly BlockingCollection<EnqueuedWorkItem> _queue;
 
     private readonly WorkerSynchronizationContext _synchronizationContext;
     public SynchronizationContext SynchronizationContext => _synchronizationContext;
@@ -18,10 +19,11 @@ public abstract partial class Worker : AsynchronousLifecycle
     private readonly WorkerTaskScheduler _taskScheduler;
     public TaskScheduler TaskScheduler => _taskScheduler;
 
-    public Worker(BlockingCollection<EnqueuedWorkItem> workItems)
+    public Worker(BlockingCollection<EnqueuedWorkItem> queue)
     {
-        ArgumentNullException.ThrowIfNull(workItems);
-        RegisterCompleteAdding(workItems, StoppingToken);
+        ArgumentNullException.ThrowIfNull(queue);
+        RegisterCompleteAdding(queue, StoppingToken);
+        _queue = queue;
 
         BlockingCollection<EnqueuedWorkItem> syncCtxWorkItems = [];
         CancellationTokenRegistration syncCtxReg = RegisterCompleteAdding(syncCtxWorkItems, StoppingToken);
@@ -31,7 +33,7 @@ public abstract partial class Worker : AsynchronousLifecycle
         CancellationTokenRegistration taskSchedulerReg = RegisterCompleteAdding(taskSchedulerWorkItems, StoppingToken);
         _taskScheduler = new WorkerTaskScheduler(Thread.ManagedThreadId, taskSchedulerWorkItems, taskSchedulerReg);
 
-        _workItems = [workItems, syncCtxWorkItems, taskSchedulerWorkItems];
+        _workItems = [queue, syncCtxWorkItems, taskSchedulerWorkItems];
     }
 
     /// <inheritdoc/>
@@ -60,7 +62,7 @@ public abstract partial class Worker : AsynchronousLifecycle
         }
     }
 
-    protected void DoWork()
+    protected virtual void DoWork()
     {
         string threadName = Thread.Name ?? DefaultThreadName;
         LogThreadStarted(Logger, threadName, Thread.ManagedThreadId);
@@ -89,6 +91,32 @@ public abstract partial class Worker : AsynchronousLifecycle
             SynchronizationContext.SetSynchronizationContext(null);
             LogThreadStopped(Logger, threadName, Thread.ManagedThreadId);
         }
+    }
+
+    public void Enqueue(Action<object?> callback, object? state)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+
+        EnqueuedWorkItem workItem = new()
+        {
+            Callback = callback,
+            State = state
+        };
+
+        _queue.Add(workItem, StoppingToken);
+    }
+
+    public void Enqueue<T>(Action<T> callback, T state) where T : class?
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+
+        EnqueuedWorkItem workItem = new()
+        {
+            Callback = Unsafe.As<Action<object?>>(callback),
+            State = state
+        };
+
+        _queue.Add(workItem, StoppingToken);
     }
 
     internal CancellationTokenRegistration Register(BlockingCollection<EnqueuedWorkItem> workItems)
