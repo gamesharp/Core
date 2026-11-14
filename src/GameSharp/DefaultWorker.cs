@@ -2,7 +2,7 @@
 
 namespace GameSharp;
 
-public sealed partial class DefaultWorker : Worker
+public class DefaultWorker : Worker
 {
     /// <inheritdoc/>
     protected internal override Thread Thread { get; }
