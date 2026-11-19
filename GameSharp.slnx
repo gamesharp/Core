@@ -9,6 +9,7 @@
   <Folder Name="/src/">
     <Project Path="src/GameSharp.Collections/GameSharp.Collections.csproj" />
     <Project Path="src/GameSharp.Events/GameSharp.Events.csproj" />
+    <Project Path="src/GameSharp.Mathematics/GameSharp.Mathematics.csproj" Id="7c92cb99-e6a2-46b0-b6c0-9dd38d5e9073" />
     <Project Path="src/GameSharp.Random/GameSharp.Random.csproj" />
     <Project Path="src/GameSharp.Rendering/GameSharp.Rendering.csproj" Id="0e49372d-85b0-41ec-a51f-132b570c77b7" />
     <Project Path="src/GameSharp.Sandbox.Client/GameSharp.Sandbox.Client.csproj" />
