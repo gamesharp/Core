@@ -68,7 +68,7 @@ public struct RGBA128 : IEquatable<RGBA128>,
 
     static RGBA128 IMultiplicativeIdentity<RGBA128, RGBA128>.MultiplicativeIdentity => White;
 
-    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/CtorRGBA/*'/>
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/CtorRgba/*'/>
     public RGBA128(float r, float g, float b, float a = 1.0f)
     {
         R = r;
