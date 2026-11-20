@@ -170,11 +170,39 @@ public struct RGBA32 : IEquatable<RGBA32>,
         return (RGBA128)left * (RGBA128)right;
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpMultiplyVectorScalar/*'/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RGBA128 operator *(RGBA32 left, float right)
+    {
+        return (RGBA128)left * right;
+    }
+
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpMultiplyScalarVector/*'/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RGBA128 operator *(float left, RGBA32 right)
+    {
+        return left * (RGBA128)right;
+    }
+
     /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpDivideVectorVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static RGBA128 operator /(RGBA32 left, RGBA32 right)
     {
         return (RGBA128)left / (RGBA128)right;
+    }
+
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpDivideVectorScalar/*'/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RGBA128 operator /(RGBA32 left, float right)
+    {
+        return (RGBA128)left / right;
+    }
+
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpDivideScalarVector/*'/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RGBA128 operator /(float left, RGBA32 right)
+    {
+        return left / (RGBA128)right;
     }
 
     /// <summary>
