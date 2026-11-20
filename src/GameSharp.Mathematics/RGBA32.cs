@@ -12,6 +12,7 @@ namespace GameSharp.Mathematics;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Size = 4)]
 public struct RGBA32 : IEquatable<RGBA32>,
+    IFormattable,
     IEqualityOperators<RGBA32, RGBA32, bool>,
     IAdditionOperators<RGBA32, RGBA32, RGBA128>,
     ISubtractionOperators<RGBA32, RGBA32, RGBA128>,
