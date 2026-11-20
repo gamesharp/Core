@@ -10,14 +10,18 @@
     <IsAotCompatible>true</IsAotCompatible>
     <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
     <Authors>willbldn</Authors>
+    <Description>GameSharp.Mathematics is a high-performance, SIMD-accelerated mathematics library designed for modern .NET game development and real-time graphics applications.</Description>
     <Copyright>Copyright © 2026 William Brocklesby</Copyright>
+    <PackageTags>gamedev;mathematics;math;simd;intrinsics;vector;graphics;color;performance;dotnet;csharp</PackageTags>
     <PackageProjectUrl>https://github.com/gamesharp/Core/tree/master/src/GameSharp.Mathematics</PackageProjectUrl>
     <RepositoryUrl>https://github.com/gamesharp/Core.git</RepositoryUrl>
     <PackageVersion>1.0.0-alpha</PackageVersion>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
     <None Include="..\..\LICENSE.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
