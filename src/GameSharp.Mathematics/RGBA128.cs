@@ -15,8 +15,6 @@ public struct RGBA128 : IEquatable<RGBA128>,
     ISubtractionOperators<RGBA128, RGBA128, RGBA128>,
     IMultiplyOperators<RGBA128, RGBA128, RGBA128>,
     IDivisionOperators<RGBA128, RGBA128, RGBA128>,
-    IUnaryNegationOperators<RGBA128, RGBA128>,
-    IUnaryPlusOperators<RGBA128, RGBA128>,
     IAdditiveIdentity<RGBA128, RGBA128>,
     IMultiplicativeIdentity<RGBA128, RGBA128>
 {
@@ -224,23 +222,6 @@ public struct RGBA128 : IEquatable<RGBA128>,
     public static RGBA128 operator /(float left, RGBA128 right)
     {
         return right / left;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static RGBA128 operator -(RGBA128 value)
-    {
-        if (Vector128.IsHardwareAccelerated)
-        {
-            return Unsafe.BitCast<Vector128<float>, RGBA128>(-value.Vector);
-        }
-
-        return new RGBA128(-value.R, -value.G, -value.B, -value.A);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static RGBA128 operator +(RGBA128 value)
-    {
-        return value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
