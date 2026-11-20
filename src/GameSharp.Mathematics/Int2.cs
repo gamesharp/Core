@@ -6,6 +6,9 @@ using System.Runtime.Intrinsics;
 
 namespace GameSharp.Mathematics;
 
+/// <summary>
+/// Represents a two-dimensional vector with signed 32-bit integer components.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Size = 8)]
 public struct Int2 : IEquatable<Int2>, 
     IFormattable, 
@@ -22,20 +25,28 @@ public struct Int2 : IEquatable<Int2>,
 {
     private const int Count = 2;
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/Zero/*' />
     public static Int2 Zero
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => new(0);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/One/*' />
     public static Int2 One
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => new(1);
     }
 
+    /// <summary>
+    /// The X component of the vector.
+    /// </summary>
     public int X;
 
+    /// <summary>
+    /// The Y component of the vector.
+    /// </summary>
     public int Y;
 
     private readonly Vector64<int> Vector
@@ -44,6 +55,7 @@ public struct Int2 : IEquatable<Int2>,
         get => Unsafe.BitCast<Int2, Vector64<int>>(this);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/Sum/*' />
     public readonly int Sum
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -54,6 +66,7 @@ public struct Int2 : IEquatable<Int2>,
 
     static Int2 IMultiplicativeIdentity<Int2, Int2>.MultiplicativeIdentity => One;
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/Indexer/*'/>
     public int this[int index]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -70,18 +83,25 @@ public struct Int2 : IEquatable<Int2>,
         }
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Int2"/> struct with the specified components.
+    /// </summary>
+    /// <param name="x">The X component of the vector.</param>
+    /// <param name="y">The Y component of the vector.</param>
     public Int2(int x, int y)
     {
         X = x;
         Y = y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/CtorUniform/*' />
     public Int2(int value)
     {
         X = value;
         Y = value;
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly bool Equals(Int2 other)
     {
@@ -93,11 +113,13 @@ public struct Int2 : IEquatable<Int2>,
         return Unsafe.BitCast<Int2, ulong>(this) == Unsafe.BitCast<Int2, ulong>(other);
     }
 
+    /// <inheritdoc/>
     public override readonly bool Equals(object? obj)
     {
         return obj is Int2 other && Equals(other);
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override readonly int GetHashCode()
     {
@@ -105,6 +127,7 @@ public struct Int2 : IEquatable<Int2>,
         return value.GetHashCode();
     }
 
+    /// <inheritdoc/>
     public readonly string ToString(string? format, IFormatProvider? formatProvider)
     {
         string separator = NumberFormatInfo.GetInstance(formatProvider).NumberGroupSeparator;
@@ -121,12 +144,14 @@ public struct Int2 : IEquatable<Int2>,
         return handler.ToStringAndClear();
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override readonly string ToString()
     {
         return ToString("G", CultureInfo.CurrentCulture);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/Abs/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 Abs(Int2 value)
     {
@@ -144,6 +169,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(Math.Abs(value.X), Math.Abs(value.Y));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/MinVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 Min(Int2 left, Int2 right)
     {
@@ -161,6 +187,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(Math.Min(left.X, right.X), Math.Min(left.Y, right.Y));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/MinScalar/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 Min(Int2 left, int right)
     {
@@ -178,6 +205,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(Math.Min(left.X, right), Math.Min(left.Y, right));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/MaxVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 Max(Int2 left, Int2 right)
     {
@@ -195,6 +223,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(Math.Max(left.X, right.X), Math.Max(left.Y, right.Y));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/MaxScalar/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 Max(Int2 left, int right)
     {
@@ -212,6 +241,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(Math.Max(left.X, right), Math.Max(left.Y, right));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/ClampVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 Clamp(Int2 value, Int2 min, Int2 max)
     {
@@ -231,6 +261,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(Math.Clamp(value.X, min.X, max.X), Math.Clamp(value.Y, min.Y, max.Y));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/ClampScalar/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 Clamp(Int2 value, int min, int max)
     {
@@ -250,6 +281,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(Math.Clamp(value.X, min, max), Math.Clamp(value.Y, min, max));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanAllVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanAll(Int2 left, Int2 right)
     {
@@ -266,6 +298,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X > right.X && left.Y > right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanAllScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanAll(Int2 left, int right)
     {
@@ -282,6 +315,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X > right && left.Y > right;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanAnyVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanAny(Int2 left, Int2 right)
     {
@@ -298,6 +332,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X > right.X || left.Y > right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanAnyScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanAny(Int2 left, int right)
     {
@@ -314,6 +349,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X > right || left.Y > right;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanOrEqualAllVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanOrEqualAll(Int2 left, Int2 right)
     {
@@ -330,6 +366,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X >= right.X && left.Y >= right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanOrEqualAllScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanOrEqualAll(Int2 left, int right)
     {
@@ -346,6 +383,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X >= right && left.Y >= right;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanOrEqualAnyVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanOrEqualAny(Int2 left, Int2 right)
     {
@@ -362,6 +400,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X >= right.X || left.Y >= right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/GreaterThanOrEqualAnyScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanOrEqualAny(Int2 left, int right)
     {
@@ -378,6 +417,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X >= right || left.Y >= right;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanAllVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanAll(Int2 left, Int2 right)
     {
@@ -394,6 +434,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X < right.X && left.Y < right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanAllScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanAll(Int2 left, int right)
     {
@@ -410,6 +451,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X < right && left.Y < right;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanAnyVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanAny(Int2 left, Int2 right)
     {
@@ -426,6 +468,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X < right.X || left.Y < right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanAnyScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanAny(Int2 left, int right)
     {
@@ -442,6 +485,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X < right || left.Y < right;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanOrEqualAllVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanOrEqualAll(Int2 left, Int2 right)
     {
@@ -458,6 +502,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X <= right.X && left.Y <= right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanOrEqualAllScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanOrEqualAll(Int2 left, int right)
     {
@@ -474,6 +519,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X <= right && left.Y <= right;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanOrEqualAnyVectorVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanOrEqualAny(Int2 left, Int2 right)
     {
@@ -490,6 +536,7 @@ public struct Int2 : IEquatable<Int2>,
         return left.X <= right.X || left.Y <= right.Y;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/LessThanOrEqualAnyVectorScalar/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanOrEqualAny(Int2 left, int right)
     {
@@ -506,18 +553,21 @@ public struct Int2 : IEquatable<Int2>,
         return left.X <= right || left.Y <= right;
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator ==(Int2 left, Int2 right)
     {
         return left.Equals(right);
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !=(Int2 left, Int2 right)
     {
         return !left.Equals(right);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpAddVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator +(Int2 left, Int2 right)
     {
@@ -535,6 +585,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X + right.X, left.Y + right.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpAddVectorScalar/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator +(Int2 left, int right)
     {
@@ -552,12 +603,14 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X + right, left.Y + right);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpAddScalarVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator +(int left, Int2 right)
     {
         return right + left;
     }
     
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpSubtractVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator -(Int2 left, Int2 right)
     {
@@ -575,6 +628,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X - right.X, left.Y - right.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpSubtractVectorScalar/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator -(Int2 left, int right)
     {
@@ -592,6 +646,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X - right, left.Y - right);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpSubtractScalarVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator -(int left, Int2 right)
     {
@@ -609,6 +664,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left - right.X, left - right.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpMultiplyVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator *(Int2 left, Int2 right)
     {
@@ -626,6 +682,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X * right.X, left.Y * right.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpMultiplyVectorScalar/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator *(Int2 left, int right)
     {
@@ -643,12 +700,14 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X * right, left.Y * right);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpMultiplyScalarVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator *(int left, Int2 right)
     {
         return right * left;
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpUnaryNegation/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator -(Int2 value)
     {
@@ -666,12 +725,14 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(-value.X, -value.Y);
     }
     
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpUnaryPlus/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator +(Int2 value)
     {
         return value;
     }
     
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpBitwiseAndVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator &(Int2 left, Int2 right)
     {
@@ -689,6 +750,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X & right.X, left.Y & right.Y);
     }
     
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpBitwiseOrVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator |(Int2 left, Int2 right)
     {
@@ -706,6 +768,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X | right.X, left.Y | right.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpExclusiveOrVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator ^(Int2 left, Int2 right)
     {
@@ -723,6 +786,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(left.X ^ right.X, left.Y ^ right.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpOnesComplement/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator ~(Int2 value)
     {
@@ -740,6 +804,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(~value.X, ~value.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpShiftLeft/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator <<(Int2 value, int shiftAmount)
     {
@@ -757,6 +822,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(value.X << shiftAmount, value.Y << shiftAmount);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpShiftRight/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator >>(Int2 value, int shiftAmount)
     {
@@ -774,6 +840,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2(value.X >> shiftAmount, value.Y >> shiftAmount);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpShiftRightUnsigned/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator >>>(Int2 value, int shiftAmount)
     {
@@ -791,6 +858,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Int2((int)((uint)value.X >> shiftAmount), (int)((uint)value.Y >> shiftAmount));
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpImplicitToFloatVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator Vector2(Int2 value)
     {
@@ -803,6 +871,7 @@ public struct Int2 : IEquatable<Int2>,
         return new Vector2(value.X, value.Y);
     }
 
+    /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpExplicitFromFloatVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static explicit operator Int2(Vector2 value)
     {

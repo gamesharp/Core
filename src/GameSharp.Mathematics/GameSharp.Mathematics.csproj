@@ -6,6 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
+    <Authors>willbldn</Authors>
+    <Copyright>Copyright © 2026 William Brocklesby</Copyright>
+    <PackageProjectUrl>https://github.com/gamesharp/Core/tree/master/src/GameSharp.Mathematics</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/gamesharp/Core.git</RepositoryUrl>
+    <PackageVersion>1.0.0-alpha</PackageVersion>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\LICENSE.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
 </Project>

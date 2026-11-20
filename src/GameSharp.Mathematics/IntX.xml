@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<doc>
+  <members name="IntX">
+
+    <!-- Properties & Fields -->
+    <Zero>
+      <summary>Gets a vector whose components are all set to zero.</summary>
+      <value>A vector with all components equal to <c>0</c>.</value>
+    </Zero>
+
+    <One>
+      <summary>Gets a vector whose components are all set to one.</summary>
+      <value>A vector with all components equal to <c>1</c>.</value>
+    </One>
+
+    <Sum>
+      <summary>Gets the sum of all components in the vector.</summary>
+      <value>The arithmetic sum of the vector's components.</value>
+    </Sum>
+
+    <Indexer>
+      <summary>Gets or sets the component at the specified index.</summary>
+      <param name="index">The zero-based index of the component to get or set.</param>
+      <value>The integer value of the component at <paramref name="index"/>.</value>
+      <exception cref="System.IndexOutOfRangeException">
+        <paramref name="index"/> is less than zero or greater than or equal to the number of components in the vector.
+      </exception>
+    </Indexer>
+
+    <!-- Constructors -->
+    <CtorUniform>
+      <summary>Initializes a new instance of the vector with all components set to the specified value.</summary>
+      <param name="value">The value to assign to all components.</param>
+    </CtorUniform>
+
+    <!-- Math & Clamping Methods -->
+    <Abs>
+      <summary>Computes the component-wise absolute value of a vector.</summary>
+      <param name="value">The source vector.</param>
+      <returns>A vector containing the absolute values of each component in <paramref name="value"/>.</returns>
+    </Abs>
+
+    <MinVector>
+      <summary>Returns a vector whose components are the minimum of each pair of components in two specified vectors.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns>The component-wise minimum vector.</returns>
+    </MinVector>
+
+    <MinScalar>
+      <summary>Returns a vector whose components are the minimum of each component in a vector and a scalar value.</summary>
+      <param name="left">The source vector.</param>
+      <param name="right">The scalar value to compare against each component.</param>
+      <returns>A vector containing the minimum of each component and <paramref name="right"/>.</returns>
+    </MinScalar>
+
+    <MaxVector>
+      <summary>Returns a vector whose components are the maximum of each pair of components in two specified vectors.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns>The component-wise maximum vector.</returns>
+    </MaxVector>
+
+    <MaxScalar>
+      <summary>Returns a vector whose components are the maximum of each component in a vector and a scalar value.</summary>
+      <param name="left">The source vector.</param>
+      <param name="right">The scalar value to compare against each component.</param>
+      <returns>A vector containing the maximum of each component and <paramref name="right"/>.</returns>
+    </MaxScalar>
+
+    <ClampVector>
+      <summary>Restricts each component of a vector between a corresponding minimum and maximum vector component.</summary>
+      <param name="value">The vector to restrict.</param>
+      <param name="min">The component-wise minimum values.</param>
+      <param name="max">The component-wise maximum values.</param>
+      <returns>The clamped vector.</returns>
+    </ClampVector>
+
+    <ClampScalar>
+      <summary>Restricts each component of a vector between a specified scalar minimum and maximum value.</summary>
+      <param name="value">The vector to restrict.</param>
+      <param name="min">The minimum scalar value.</param>
+      <param name="max">The maximum scalar value.</param>
+      <returns>The clamped vector.</returns>
+    </ClampScalar>
+
+    <!-- Comparison Methods -->
+    <GreaterThanAllVector>
+      <summary>Determines whether all components of the first vector are greater than the corresponding components of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are greater than those of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanAllVector>
+
+    <GreaterThanAllScalar>
+      <summary>Determines whether all components of a vector are greater than a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are greater than <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanAllScalar>
+
+    <GreaterThanAnyVector>
+      <summary>Determines whether any component of the first vector is greater than the corresponding component of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is greater than that of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanAnyVector>
+
+    <GreaterThanAnyScalar>
+      <summary>Determines whether any component of a vector is greater than a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is greater than <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanAnyScalar>
+
+    <GreaterThanOrEqualAllVector>
+      <summary>Determines whether all components of the first vector are greater than or equal to the corresponding components of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are greater than or equal to those of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanOrEqualAllVector>
+
+    <GreaterThanOrEqualAllScalar>
+      <summary>Determines whether all components of a vector are greater than or equal to a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are greater than or equal to <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanOrEqualAllScalar>
+
+    <GreaterThanOrEqualAnyVector>
+      <summary>Determines whether any component of the first vector is greater than or equal to the corresponding component of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is greater than or equal to that of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanOrEqualAnyVector>
+
+    <GreaterThanOrEqualAnyScalar>
+      <summary>Determines whether any component of a vector is greater than or equal to a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is greater than or equal to <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </GreaterThanOrEqualAnyScalar>
+
+    <LessThanAllVector>
+      <summary>Determines whether all components of the first vector are less than the corresponding components of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are less than those of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanAllVector>
+
+    <LessThanAllScalar>
+      <summary>Determines whether all components of a vector are less than a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are less than <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanAllScalar>
+
+    <LessThanAnyVector>
+      <summary>Determines whether any component of the first vector is less than the corresponding component of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is less than that of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanAnyVector>
+
+    <LessThanAnyScalar>
+      <summary>Determines whether any component of a vector is less than a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is less than <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanAnyScalar>
+
+    <LessThanOrEqualAllVector>
+      <summary>Determines whether all components of the first vector are less than or equal to the corresponding components of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are less than or equal to those of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanOrEqualAllVector>
+
+    <LessThanOrEqualAllScalar>
+      <summary>Determines whether all components of a vector are less than or equal to a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if all components of <paramref name="left"/> are less than or equal to <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanOrEqualAllScalar>
+
+    <LessThanOrEqualAnyVector>
+      <summary>Determines whether any component of the first vector is less than or equal to the corresponding component of the second vector.</summary>
+      <param name="left">The first vector to compare.</param>
+      <param name="right">The second vector to compare.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is less than or equal to that of <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanOrEqualAnyVector>
+
+    <LessThanOrEqualAnyScalar>
+      <summary>Determines whether any component of a vector is less than or equal to a specified scalar value.</summary>
+      <param name="left">The vector to compare.</param>
+      <param name="right">The scalar value to compare against.</param>
+      <returns><see langword="true"/> if any component of <paramref name="left"/> is less than or equal to <paramref name="right"/>; otherwise, <see langword="false"/>.</returns>
+    </LessThanOrEqualAnyScalar>
+
+    <!-- Arithmetic Operators -->
+    <OpAddVectorVector>
+      <summary>Adds two vectors together component-wise.</summary>
+      <param name="left">The first vector to add.</param>
+      <param name="right">The second vector to add.</param>
+      <returns>The component-wise sum of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpAddVectorVector>
+
+    <OpAddVectorScalar>
+      <summary>Adds a scalar value to each component of a vector.</summary>
+      <param name="left">The source vector.</param>
+      <param name="right">The scalar value to add.</param>
+      <returns>A vector whose components are the sum of the components in <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpAddVectorScalar>
+
+    <OpAddScalarVector>
+      <summary>Adds a scalar value to each component of a vector.</summary>
+      <param name="left">The scalar value to add.</param>
+      <param name="right">The source vector.</param>
+      <returns>A vector whose components are the sum of <paramref name="left"/> and the components in <paramref name="right"/>.</returns>
+    </OpAddScalarVector>
+
+    <OpSubtractVectorVector>
+      <summary>Subtracts the second vector from the first vector component-wise.</summary>
+      <param name="left">The vector to subtract from.</param>
+      <param name="right">The vector to subtract.</param>
+      <returns>The component-wise difference of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpSubtractVectorVector>
+
+    <OpSubtractVectorScalar>
+      <summary>Subtracts a scalar value from each component of a vector.</summary>
+      <param name="left">The vector to subtract from.</param>
+      <param name="right">The scalar value to subtract.</param>
+      <returns>A vector whose components are the result of subtracting <paramref name="right"/> from each component in <paramref name="left"/>.</returns>
+    </OpSubtractVectorScalar>
+
+    <OpSubtractScalarVector>
+      <summary>Subtracts each component of a vector from a scalar value.</summary>
+      <param name="left">The scalar value to subtract from.</param>
+      <param name="right">The vector to subtract.</param>
+      <returns>A vector whose components are the result of subtracting each component in <paramref name="right"/> from <paramref name="left"/>.</returns>
+    </OpSubtractScalarVector>
+
+    <OpMultiplyVectorVector>
+      <summary>Multiplies two vectors together component-wise.</summary>
+      <param name="left">The first vector to multiply.</param>
+      <param name="right">The second vector to multiply.</param>
+      <returns>The component-wise product of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpMultiplyVectorVector>
+
+    <OpMultiplyVectorScalar>
+      <summary>Multiplies each component of a vector by a scalar value.</summary>
+      <param name="left">The source vector.</param>
+      <param name="right">The scalar multiplier.</param>
+      <returns>The scaled vector.</returns>
+    </OpMultiplyVectorScalar>
+
+    <OpMultiplyScalarVector>
+      <summary>Multiplies a scalar value by each component of a vector.</summary>
+      <param name="left">The scalar multiplier.</param>
+      <param name="right">The source vector.</param>
+      <returns>The scaled vector.</returns>
+    </OpMultiplyScalarVector>
+
+    <OpUnaryNegation>
+      <summary>Negates each component of the specified vector.</summary>
+      <param name="value">The vector to negate.</param>
+      <returns>The negated vector.</returns>
+    </OpUnaryNegation>
+
+    <OpUnaryPlus>
+      <summary>Returns the value of the specified vector operand.</summary>
+      <param name="value">The source vector.</param>
+      <returns>The value of <paramref name="value"/>.</returns>
+    </OpUnaryPlus>
+
+    <!-- Bitwise & Shift Operators -->
+    <OpBitwiseAndVectorVector>
+      <summary>Computes the bitwise AND of two vectors component-wise.</summary>
+      <param name="left">The first vector.</param>
+      <param name="right">The second vector.</param>
+      <returns>The component-wise bitwise AND of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpBitwiseAndVectorVector>
+
+    <OpBitwiseAndVectorScalar>
+      <summary>Computes the bitwise AND of a vector and a scalar value component-wise.</summary>
+      <param name="left">The vector.</param>
+      <param name="right">The scalar value.</param>
+      <returns>The component-wise bitwise AND of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpBitwiseAndVectorScalar>
+
+    <OpBitwiseAndScalarVector>
+      <summary>Computes the bitwise AND of a scalar value and a vector component-wise.</summary>
+      <param name="left">The scalar value.</param>
+      <param name="right">The vector.</param>
+      <returns>The component-wise bitwise AND of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpBitwiseAndScalarVector>
+
+    <OpBitwiseOrVectorVector>
+      <summary>Computes the bitwise OR of two vectors component-wise.</summary>
+      <param name="left">The first vector.</param>
+      <param name="right">The second vector.</param>
+      <returns>The component-wise bitwise OR of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpBitwiseOrVectorVector>
+
+    <OpBitwiseOrVectorScalar>
+      <summary>Computes the bitwise OR of a vector and a scalar value component-wise.</summary>
+      <param name="left">The vector.</param>
+      <param name="right">The scalar value.</param>
+      <returns>
+        The component-wise bitwise OR of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpBitwiseOrVectorScalar>
+
+    <OpBitwiseOrScalarVector>
+      <summary>Computes the bitwise OR of a scalar value and a vector component-wise.</summary>
+      <param name="left">The scalar value.</param>
+      <param name="right">The vector.</param>
+      <returns>The component-wise bitwise OR of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpBitwiseOrScalarVector>
+
+    <OpExclusiveOrVectorVector>
+      <summary>Computes the bitwise exclusive OR (XOR) of two vectors component-wise.</summary>
+      <param name="left">The first vector.</param>
+      <param name="right">The second vector.</param>
+      <returns>The component-wise bitwise XOR of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpExclusiveOrVectorVector>
+
+    <OpExlcusiveOrVectorScalar>
+      <summary>Computes the bitwise exclusive OR (XOR) of a vector and a scalar value component-wise.</summary>
+      <param name="left">The vector.</param>
+      <param name="right">The scalar value.</param>
+      <returns>The component-wise bitwise XOR of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpExlcusiveOrVectorScalar>
+
+    <OpExlusiveOrScalarVector>
+      <summary>Computes the bitwise exclusive OR (XOR) of a scalar value and a vector component-wise.</summary>
+      <param name="left">The scalar value.</param>
+      <param name="right">The vector.</param>
+      <returns>The component-wise bitwise XOR of <paramref name="left"/> and <paramref name="right"/>.</returns>
+    </OpExlusiveOrScalarVector>
+
+    <OpOnesComplement>
+      <summary>Computes the bitwise one's complement of each component in a vector.</summary>
+      <param name="value">The source vector.</param>
+      <returns>A vector containing the bitwise complement of each component in <paramref name="value"/>.</returns>
+    </OpOnesComplement>
+
+    <OpLeftShift>
+      <summary>Shifts each component of a vector left by the specified number of bits.</summary>
+      <param name="value">The vector whose components are to be shifted.</param>
+      <param name="shiftAmount">The number of bits to shift left.</param>
+      <returns>A vector whose components are shifted left by <paramref name="shiftAmount"/> bits.</returns>
+    </OpLeftShift>
+
+    <OpRightShift>
+      <summary>Shifts each component of a vector right by the specified number of bits (arithmetic shift).</summary>
+      <param name="value">The vector whose components are to be shifted.</param>
+      <param name="shiftAmount">The number of bits to shift right.</param>
+      <returns>A vector whose components are shifted right by <paramref name="shiftAmount"/> bits.</returns>
+    </OpRightShift>
+
+    <OpUnsignedRightShift>
+      <summary>Shifts each component of a vector right by the specified number of bits without sign extension (logical shift).</summary>
+      <param name="value">The vector whose components are to be shifted.</param>
+      <param name="shiftAmount">The number of bits to shift right.</param>
+      <returns>A vector whose components are logically shifted right by <paramref name="shiftAmount"/> bits.</returns>
+    </OpUnsignedRightShift>
+
+    <!-- Conversion Operators -->
+    <OpImplicitToFloatVector>
+      <summary>Defines an implicit conversion of an integer vector to a single-precision floating-point vector.</summary>
+      <param name="value">The integer vector to convert.</param>
+      <returns>A floating-point vector containing the converted components of <paramref name="value"/>.</returns>
+    </OpImplicitToFloatVector>
+
+    <OpExplicitFromFloatVector>
+      <summary>Defines an explicit conversion of a single-precision floating-point vector to an integer vector.</summary>
+      <param name="value">The floating-point vector to convert.</param>
+      <returns>An integer vector containing the truncated integer components of <paramref name="value"/>.</returns>
+    </OpExplicitFromFloatVector>
+
+  </members>
+</doc>
