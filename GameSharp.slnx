@@ -2,21 +2,13 @@
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/GameSharp.Collections.Benchmarks/GameSharp.Collections.Benchmarks.csproj" />
   </Folder>
-  <Folder Name="/examples/">
-    <Project Path="examples/SandboxEscape.Client/SandboxEscape.Client.csproj" />
-    <Project Path="examples/SandboxEscape/SandboxEscape.csproj" />
-  </Folder>
+  <Folder Name="/examples/" />
   <Folder Name="/src/">
     <Project Path="src/GameSharp.Collections/GameSharp.Collections.csproj" />
-    <Project Path="src/GameSharp.Events/GameSharp.Events.csproj" />
+    <Project Path="src/GameSharp.DirectX/GameSharp.DirectX.csproj" Id="f20d055c-e345-48d0-9e39-af11f6e1fdbe" />
     <Project Path="src/GameSharp.Mathematics/GameSharp.Mathematics.csproj" Id="7c92cb99-e6a2-46b0-b6c0-9dd38d5e9073" />
     <Project Path="src/GameSharp.Random/GameSharp.Random.csproj" />
     <Project Path="src/GameSharp.Rendering/GameSharp.Rendering.csproj" Id="0e49372d-85b0-41ec-a51f-132b570c77b7" />
-    <Project Path="src/GameSharp.Sandbox.Client/GameSharp.Sandbox.Client.csproj" />
-    <Project Path="src/GameSharp.Sandbox.Host.Dotnet/GameSharp.Sandbox.Host.Dotnet.csproj" />
-    <Project Path="src/GameSharp.Sandbox.Host.Java/GameSharp.Sandbox.Host.Java.csproj" />
-    <Project Path="src/GameSharp.Sandbox.Host/GameSharp.Sandbox.Host.csproj" />
-    <Project Path="src/GameSharp.Sandbox/GameSharp.Sandbox.csproj" />
     <Project Path="src/GameSharp/GameSharp.csproj" />
   </Folder>
   <Folder Name="/src/ProceduralGraph/">
@@ -29,6 +21,5 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/GameSharp.Collections.Tests/GameSharp.Collections.Tests.csproj" />
-    <Project Path="tests/GameSharp.Sandbox.Tests/GameSharp.Sandbox.Tests.csproj" />
   </Folder>
 </Solution>
