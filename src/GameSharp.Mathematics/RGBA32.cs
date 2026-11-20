@@ -7,6 +7,9 @@ using System.Runtime.Intrinsics;
 
 namespace GameSharp.Mathematics;
 
+/// <summary>
+/// Represents a colour with red, green, blue, and alpha components stored as 8-bit unsigned integers.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Size = 4)]
 public struct RGBA32 : IEquatable<RGBA32>,
     IEqualityOperators<RGBA32, RGBA32, bool>,
@@ -20,8 +23,10 @@ public struct RGBA32 : IEquatable<RGBA32>,
     private const int Count = 4;
     private const float ByteToFloat = 1.0f / 255.0f;
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/Transparent/*'/>
     public static RGBA32 Transparent => new(r: 0, g: 0, b: 0, a: 0);
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/White/*'/>
     public static RGBA32 White => new(r: 255, g: 255, b: 255, a: 255);
 
     private readonly uint Value
@@ -30,18 +35,23 @@ public struct RGBA32 : IEquatable<RGBA32>,
         get => Unsafe.BitCast<RGBA32, uint>(this);
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/R/*'/>
     public byte R;
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/G/*'/>
     public byte G;
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/B/*'/>
     public byte B;
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/A/*'/>
     public byte A;
 
     static RGBA32 IAdditiveIdentity<RGBA32, RGBA32>.AdditiveIdentity => Transparent;
 
     static RGBA32 IMultiplicativeIdentity<RGBA32, RGBA32>.MultiplicativeIdentity => White;
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/Indexer/*'/>
     public byte this[int index]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -58,6 +68,7 @@ public struct RGBA32 : IEquatable<RGBA32>,
         }
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/CtorRgba/*'/>
     public RGBA32(byte r, byte g, byte b, byte a = byte.MaxValue)
     {
         R = r;
@@ -66,29 +77,34 @@ public struct RGBA32 : IEquatable<RGBA32>,
         A = a;
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/CtorGrayscale/*'/>
     public RGBA32(byte rgb, byte a = byte.MaxValue)
     {
         R = G = B = rgb;
         A = a;
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly bool Equals(RGBA32 other)
     {
         return Value == other.Value;
     }
 
+    /// <inheritdoc/>
     public override readonly bool Equals([NotNullWhen(true)] object? obj)
     {
         return obj is RGBA32 other && Equals(other);
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override readonly int GetHashCode()
     {
         return Value.GetHashCode();
     }
 
+    /// <inheritdoc/>
     public readonly string ToString([StringSyntax(StringSyntaxAttribute.NumericFormat)] string? format, IFormatProvider? formatProvider)
     {
         string separator = NumberFormatInfo.GetInstance(formatProvider).NumberGroupSeparator;
@@ -111,48 +127,59 @@ public struct RGBA32 : IEquatable<RGBA32>,
         return handler.ToStringAndClear();
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override readonly string ToString()
     {
         return ToString("G", CultureInfo.CurrentCulture);
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator ==(RGBA32 left, RGBA32 right)
     {
         return left.Equals(right);
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !=(RGBA32 left, RGBA32 right)
     {
         return !left.Equals(right);
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpAdd/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static RGBA128 operator +(RGBA32 left, RGBA32 right)
     {
         return (RGBA128)left + (RGBA128)right;
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpSubtract/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static RGBA128 operator -(RGBA32 left, RGBA32 right)
     {
         return (RGBA128)left - (RGBA128)right;
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpMultiplyVectorVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static RGBA128 operator *(RGBA32 left, RGBA32 right)
     {
         return (RGBA128)left * (RGBA128)right;
     }
 
+    /// <include file='RGBAX.xml' path='doc/members[@name="RGBAX"]/OpDivideVectorVector/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static RGBA128 operator /(RGBA32 left, RGBA32 right)
     {
         return (RGBA128)left / (RGBA128)right;
     }
 
+    /// <summary>
+    /// Defines an implicit conversion of an <see cref="RGBA32"/> value to an <see cref="RGBA128"/> value.
+    /// </summary>
+    /// <param name="value">The <see cref="RGBA32"/> value to convert.</param>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator RGBA128(RGBA32 value)
     {

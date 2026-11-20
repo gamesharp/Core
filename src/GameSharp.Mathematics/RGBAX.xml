@@ -1,0 +1,132 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<doc>
+  <members name="RGBAX">
+    
+    <!-- Properties & Fields -->
+    <Transparent>
+      <summary>Gets a colour with all components (red, green, blue, and alpha) set to zero.</summary>
+      <value>A fully transparent black colour.</value>
+    </Transparent>
+
+    <White>
+      <summary>Gets a colour with all components (red, green, blue, and alpha) set to their maximum intensity.</summary>
+      <value>An opaque white colour.</value>
+    </White>
+
+    <R>
+      <summary>The red component of the colour.</summary>
+    </R>
+
+    <G>
+      <summary>The green component of the colour.</summary>
+    </G>
+
+    <B>
+      <summary>The blue component of the colour.</summary>
+    </B>
+
+    <A>
+      <summary>The alpha (opacity) component of the colour.</summary>
+    </A>
+
+    <Indexer>
+      <summary>Gets or sets the colour component at the specified index.</summary>
+      <param name="index">The zero-based index of the component to get or set (0 for R, 1 for G, 2 for B, and 3 for A).</param>
+      <value>
+        The value of the component at <paramref name="index"/>.
+      </value>
+      <exception cref="System.IndexOutOfRangeException">
+        <paramref name="index"/> is less than <c>0</c> or greater than <c>3</c>.
+      </exception>
+    </Indexer>
+
+    <!-- Constructors -->
+    <CtorRgba>
+      <summary>Initializes a new instance of the colour using the specified red, green, blue, and alpha values.</summary>
+      <param name="r">The red component value.</param>
+      <param name="g">The green component value.</param>
+      <param name="b">The blue component value.</param>
+      <param name="a">The alpha component value. Defaults to full opacity.</param>
+    </CtorRgba>
+
+    <CtorGrayscale>
+      <summary>Initializes a new grayscale instance of the colour with equal red, green, and blue values and the specified alpha value.</summary>
+      <param name="rgb">The intensity value to assign to the red, green, and blue components.</param>
+      <param name="a">The alpha component value. Defaults to full opacity.</param>
+    </CtorGrayscale>
+
+    <!-- Arithmetic Operators -->
+    <OpAdd>
+      <summary>Adds two colours together component-wise.</summary>
+      <param name="left">The first colour to add.</param>
+      <param name="right">The second colour to add.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise sum of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpAdd>
+
+    <OpSubtract>
+      <summary>Subtracts the second colour from the first colour component-wise.</summary>
+      <param name="left">The colour to subtract from.</param>
+      <param name="right">The colour to subtract.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise difference of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpSubtract>
+
+    <OpMultiplyVectorVector>
+      <summary>Multiplies two colours together component-wise.</summary>
+      <param name="left">The first colour to multiply.</param>
+      <param name="right">The second colour to multiply.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise product of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpMultiplyVectorVector>
+
+    <OpMultiplyVectorScalar>
+      <summary>Multiplies a colour by a scalar value component-wise.</summary>
+      <param name="left">The colour to multiply.</param>
+      <param name="right">The scalar value to multiply by.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise product of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpMultiplyVectorScalar>
+
+    <OpMultiplyScalarVector>
+      <summary>Multiplies a scalar value by a colour component-wise.</summary>
+      <param name="left">The scalar value to multiply.</param>
+      <param name="right">The colour to multiply.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise product of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpMultiplyScalarVector>
+
+    <OpDivideVectorVector>
+      <summary>Divides the first colour by the second colour component-wise.</summary>
+      <param name="left">The dividend colour.</param>
+      <param name="right">The divisor colour.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise quotient of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpDivideVectorVector>
+
+    <OpDivideVectorScalar>
+      <summary>Divides the first colour by the scalar value component-wise.</summary>
+      <param name="left">The dividend colour.</param>
+      <param name="right">The divisor scalar value.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise quotient of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpDivideVectorScalar>
+
+    <OpDivideScalarVector>
+      <summary>Divides a scalar value by the first colour component-wise.</summary>
+      <param name="left">The dividend scalar value.</param>
+      <param name="right">The divisor colour.</param>
+      <returns>
+        An <see cref="RGBA128"/> value representing the component-wise quotient of <paramref name="left"/> and <paramref name="right"/>.
+      </returns>
+    </OpDivideScalarVector>
+    
+  </members>
+</doc>
