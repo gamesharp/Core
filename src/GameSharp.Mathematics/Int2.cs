@@ -530,7 +530,7 @@ public struct Int2 : IEquatable<Int2>,
 
         if (Vector128.IsHardwareAccelerated)
         {
-            return Vector128.LessThanOrEqualAll(Vector128.Create(left.Vector), Vector128.Create(right.Vector));
+            return Vector128.LessThanOrEqualAny(Vector128.Create(left.Vector), Vector128.Create(right.Vector));
         }
 
         return left.X <= right.X || left.Y <= right.Y;
@@ -609,7 +609,7 @@ public struct Int2 : IEquatable<Int2>,
     {
         return right + left;
     }
-    
+
     /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpSubtractVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator -(Int2 left, Int2 right)
@@ -724,14 +724,14 @@ public struct Int2 : IEquatable<Int2>,
 
         return new Int2(-value.X, -value.Y);
     }
-    
+
     /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpUnaryPlus/*'/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator +(Int2 value)
     {
         return value;
     }
-    
+
     /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpBitwiseAndVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator &(Int2 left, Int2 right)
@@ -749,7 +749,7 @@ public struct Int2 : IEquatable<Int2>,
 
         return new Int2(left.X & right.X, left.Y & right.Y);
     }
-    
+
     /// <include file='IntX.xml' path='doc/members[@name="IntX"]/OpBitwiseOrVectorVector/*'/>
     [SkipLocalsInit, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Int2 operator |(Int2 left, Int2 right)
